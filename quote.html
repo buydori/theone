@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>견적문의 - 더원클린앤케어</title>
+    <meta name="description" content="더원클린앤케어 견적문의 페이지. 청소 서비스 견적을 요청하세요.">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #ffffff;
+            color: #000000;
+            line-height: 1.6;
+        }
+
+        /* Header - Same as other pages */
+        .header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            z-index: 1000;
+            transition: all 0.3s ease;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            height: 70px;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            text-decoration: none;
+            color: #000000;
+        }
+
+        .logo-text {
+            font-size: 20px;
+            font-weight: 700;
+            color: #000000;
+        }
+
+        .nav-menu {
+            display: flex;
+            list-style: none;
+            gap: 30px;
+            align-items: center;
+        }
+
+        .nav-menu a {
+            text-decoration: none;
+            color: #000000;
+            font-weight: 500;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        .nav-menu a:hover,
+        .nav-menu a.active {
+            color: #666666;
+        }
+
+        .mobile-menu-btn {
+            display: none;
+            flex-direction: column;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .mobile-menu-btn span {
+            width: 25px;
+            height: 2px;
+            background: #000000;
+            margin: 3px 0;
+            transition: 0.3s;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding-top: 70px;
+            min-height: 100vh;
+        }
+
+        .page-header {
+            padding: 60px 20px;
+            text-align: center;
+            background: #fafafa;
+        }
+
+        .page-header h1 {
+            font-size: 36px;
+            font-weight: 700;
+            color: #000000;
+            margin-bottom: 16px;
+        }
+
+        .page-header p {
+            font-size: 16px;
+            color: #666666;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .form-section {
+            padding: 80px 20px;
+            background: #ffffff;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .quote-form {
+            background: #fafafa;
+            padding: 40px;
+            border: 1px solid #e0e0e0;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .required {
+            color: #ff0000;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            background: #ffffff;
+            color: #000000;
+            font-size: 14px;
+            font-family: inherit;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #000000;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 120px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .checkbox-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .checkbox-item input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .checkbox-item label {
+            margin: 0;
+            font-weight: 400;
+            cursor: pointer;
+        }
+
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-upload-label {
+            display: block;
+            padding: 14px;
+            background: #ffffff;
+            border: 2px dashed #e0e0e0;
+            text-align: center;
+            color: #666666;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload:hover .file-upload-label {
+            border-color: #000000;
+            color: #000000;
+        }
+
+        .file-list {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            display: none;
+        }
+
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 5px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-remove {
+            background: #ff0000;
+            color: #ffffff;
+            border: none;
+            padding: 4px 8px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 18px;
+            background: #000000;
+            color: #ffffff;
+            border: none;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .submit-btn:hover {
+            background: #333333;
+        }
+
+        .submit-btn:disabled {
+            background: #cccccc;
+            cursor: not-allowed;
+        }
+
+        .contact-info {
+            padding: 40px 20px;
+            background: #000000;
+            color: #ffffff;
+            text-align: center;
+        }
+
+        .contact-info h2 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .contact-info p {
+            margin-bottom: 30px;
+            opacity: 0.9;
+        }
+
+        .contact-methods {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 30px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .contact-method {
+            padding: 20px;
+            border: 1px solid #333333;
+        }
+
+        .contact-method h4 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .contact-method p {
+            font-size: 14px;
+            opacity: 0.8;
+            margin: 0;
+        }
+
+        /* Footer */
+        .footer {
+            background: #000000;
+            color: #ffffff;
+            padding: 60px 20px 30px;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        .footer h3 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .footer p {
+            font-size: 14px;
+            color: #cccccc;
+            margin-bottom: 30px;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .footer-links a {
+            color: #cccccc;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.3s ease;
+        }
+
+        .footer-links a:hover {
+            color: #ffffff;
+        }
+
+        .footer-bottom {
+            border-top: 1px solid #333333;
+            padding-top: 20px;
+            font-size: 12px;
+            color: #999999;
+        }
+
+        /* Alert Messages */
+        .alert {
+            padding: 15px;
+            margin-bottom: 20px;
+            border: 1px solid transparent;
+            display: none;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .nav-menu {
+                display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: #ffffff;
+                flex-direction: column;
+                padding: 20px;
+                border-top: 1px solid rgba(0, 0, 0, 0.1);
+                gap: 20px;
+            }
+
+            .nav-menu.show {
+                display: flex;
+            }
+
+            .mobile-menu-btn {
+                display: flex;
+            }
+
+            .page-header h1 {
+                font-size: 28px;
+            }
+
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+
+            .quote-form {
+                padding: 30px 20px;
+            }
+
+            .checkbox-group {
+                grid-template-columns: 1fr;
+            }
+
+            .contact-methods {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-links {
+                flex-direction: column;
+                gap: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .page-header {
+                padding: 40px 15px;
+            }
+
+            .form-section {
+                padding: 60px 15px;
+            }
+
+            .quote-form {
+                padding: 20px 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <nav class="nav-container">
+            <a href="index.html" class="logo">
+                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #87CEEB 0%, #4682B4 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                    <div style="width: 16px; height: 16px; background: white; border-radius: 50%;"></div>
+                </div>
+                <span class="logo-text">더원클린앤케어</span>
+            </a>
+            
+            <ul class="nav-menu" id="navMenu">
+                <li><a href="index.html">홈</a></li>
+                <li><a href="services.html">제공서비스</a></li>
+                <li><a href="quote.html" class="active">견적문의</a></li>
+                <li><a href="https://blog.naver.com/theonecc" target="_blank">블로그</a></li>
+                <li><a href="https://www.youtube.com/channel/UCbl65_hWDrsir039C7XDFrw" target="_blank">유튜브</a></li>
+                <li><a href="management.html">바로가기</a></li>
+            </ul>
+            
+            <div class="mobile-menu-btn" onclick="toggleMobileMenu()">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </nav>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Page Header -->
+        <section class="page-header">
+            <h1>견적 문의</h1>
+            <p>서비스 종류와 요구사항을 알려주시면 정확한 견적을 제공해드립니다</p>
+        </section>
+
+        <!-- Form Section -->
+        <section class="form-section">
+            <div class="container">
+                <div class="alert alert-success" id="successAlert">
+                    견적 문의가 성공적으로 접수되었습니다. 빠른 시일 내에 연락드리겠습니다.
+                </div>
+                
+                <div class="alert alert-error" id="errorAlert">
+                    문의 접수 중 오류가 발생했습니다. 다시 시도하거나 전화로 문의해주세요.
+                </div>
+
+                <form class="quote-form" id="quoteForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="name">성함 <span class="required">*</span></label>
+                            <input type="text" id="name" name="name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">연락처 <span class="required">*</span></label>
+                            <input type="tel" id="phone" name="phone" placeholder="010-0000-0000" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="address">주소 <span class="required">*</span></label>
+                        <input type="text" id="address" name="address" placeholder="서비스 받을 주소를 입력해주세요" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="serviceType">서비스 종류 <span class="required">*</span></label>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="housing" name="serviceType" value="주택관리">
+                                <label for="housing">주택관리</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="regular" name="serviceType" value="정기청소">
+                                <label for="regular">정기청소</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="aircon" name="serviceType" value="에어컨청소">
+                                <label for="aircon">에어컨청소</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="mattress" name="serviceType" value="매트리스청소">
+                                <label for="mattress">매트리스청소</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="washing" name="serviceType" value="세탁기청소">
+                                <label for="washing">세탁기청소</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="other" name="serviceType" value="기타">
+                                <label for="other">기타</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="area">평수</label>
+                            <select id="area" name="area">
+                                <option value="">선택해주세요</option>
+                                <option value="20평 미만">20평 미만</option>
+                                <option value="20-30평">20-30평</option>
+                                <option value="30-40평">30-40평</option>
+                                <option value="40평 이상">40평 이상</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="urgency">희망 일정</label>
+                            <select id="urgency" name="urgency">
+                                <option value="">선택해주세요</option>
+                                <option value="급함 (1-2일 내)">급함 (1-2일 내)</option>
+                                <option value="보통 (3-7일 내)">보통 (3-7일 내)</option>
+                                <option value="여유 (1주일 이후)">여유 (1주일 이후)</option>
+                                <option value="상담 후 결정">상담 후 결정</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="requirements">요청 내용</label>
+                        <textarea id="requirements" name="requirements" placeholder="서비스에 대한 상세한 요구사항이나 특이사항을 적어주세요"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="photos">사진 첨부 (선택사항)</label>
+                        <div class="file-upload">
+                            <input type="file" id="photos" name="photos" multiple accept="image/*">
+                            <label for="photos" class="file-upload-label">
+                                📷 사진을 선택하거나 여기에 드래그하세요<br>
+                                <small>(최대 5개, 각 10MB 이하)</small>
+                            </label>
+                        </div>
+                        <div class="file-list" id="fileList"></div>
+                    </div>
+
+                    <button type="submit" class="submit-btn">견적 문의 보내기</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Contact Info -->
+        <section class="contact-info">
+            <div class="container">
+                <h2>빠른 상담이 필요하시면</h2>
+                <p>전화나 카카오톡으로 바로 문의하세요</p>
+                
+                <div class="contact-methods">
+                    <div class="contact-method">
+                        <h4>📞 전화 문의</h4>
+                        <p>010-3382-6739<br>평일 09:00 - 18:00</p>
+                    </div>
+                    
+                    <div class="contact-method">
+                        <h4>💬 카카오톡 문의</h4>
+                        <p>더원클린앤케어 채널<br>24시간 상담 가능</p>
+                    </div>
+                    
+                    <div class="contact-method">
+                        <h4>⏰ 응급 서비스</h4>
+                        <p>주말/공휴일<br>응급상황 대응</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <h3>더원클린앤케어</h3>
+            <p>파주시 야당동에서 가장 신뢰받는 청소 전문업체</p>
+            
+            <div class="footer-links">
+                <a href="index.html">홈</a>
+                <a href="services.html">제공서비스</a>
+                <a href="quote.html">견적문의</a>
+                <a href="https://blog.naver.com/theonecc" target="_blank">블로그</a>
+                <a href="https://www.youtube.com/channel/UCbl65_hWDrsir039C7XDFrw" target="_blank">유튜브</a>
+                <a href="management.html">바로가기</a>
+            </div>
+            
+            <div class="footer-bottom">
+                <p>&copy; 2025 더원클린앤케어. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Mobile Menu Toggle
+        function toggleMobileMenu() {
+            const navMenu = document.getElementById('navMenu');
+            navMenu.classList.toggle('show');
+        }
+
+        // File Upload Handling
+        const fileInput = document.getElementById('photos');
+        const fileList = document.getElementById('fileList');
+        let selectedFiles = [];
+
+        fileInput.addEventListener('change', function(e) {
+            const files = Array.from(e.target.files);
+            
+            files.

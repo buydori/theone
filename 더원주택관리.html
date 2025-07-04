@@ -1,0 +1,1119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>더원주택관리 - 관리비 조회 및 결제</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            background: white;
+            overflow: hidden;
+            width: 100%;
+            min-height: 100vh;
+            animation: slideUp 0.6s ease-out;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* 데스크톱 스타일 */
+        @media (min-width: 768px) {
+            body {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+            
+            .container {
+                border-radius: 20px;
+                box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+                max-width: 450px;
+                min-height: auto;
+            }
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            padding: 25px 20px;
+            text-align: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+
+        .company-logo {
+            width: 50px;
+            height: 50px;
+            object-fit: contain;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 8px;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-text {
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header p {
+            font-size: 13px;
+            opacity: 0.9;
+            margin: 5px 0 0 0;
+        }
+
+        @media (max-width: 767px) {
+            .header {
+                padding: 20px 15px;
+            }
+            
+            .header-content {
+                gap: 12px;
+            }
+            
+            .logo-container {
+                gap: 10px;
+            }
+            
+            .company-logo {
+                width: 42px;
+                height: 42px;
+                padding: 6px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+            
+            .header p {
+                font-size: 12px;
+            }
+        }
+
+        @media (min-width: 768px) {
+            .logo-container {
+                flex-direction: row;
+            }
+            
+            .company-logo {
+                width: 60px;
+                height: 60px;
+                padding: 10px;
+            }
+        }
+
+        .content {
+            padding: 25px 20px;
+            padding-bottom: 100px;
+        }
+
+        @media (max-width: 767px) {
+            .content {
+                padding: 20px 15px;
+                padding-bottom: 120px;
+            }
+        }
+
+        .search-section {
+            margin-bottom: 30px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        .input-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+
+        .input-group input {
+            width: 100%;
+            padding: 16px 15px;
+            border: 2px solid #e1e8ed;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: #f8f9fa;
+            -webkit-appearance: none;
+            -webkit-border-radius: 12px;
+        }
+
+        .input-group input:focus {
+            outline: none;
+            border-color: #4facfe;
+            background: white;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        .search-btn, .payment-btn {
+            width: 100%;
+            padding: 16px 15px;
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 20px;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .search-btn:hover, .payment-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
+        }
+
+        .search-btn:active, .payment-btn:active {
+            transform: translateY(0);
+        }
+
+        .search-btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-section {
+            display: none;
+            animation: fadeIn 0.5s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .customer-info {
+            background: #f8f9fa;
+            padding: 18px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+        }
+
+        .customer-info h3 {
+            color: #333;
+            margin-bottom: 12px;
+            font-size: 17px;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .info-item span:first-child {
+            color: #666;
+            flex-shrink: 0;
+            margin-right: 10px;
+        }
+
+        .info-item span:last-child {
+            font-weight: 600;
+            color: #333;
+            text-align: right;
+            word-break: keep-all;
+        }
+
+        .bill-section {
+            background: white;
+            border: 2px solid #e1e8ed;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 20px;
+        }
+
+        .bill-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        .bill-header h4 {
+            color: #333;
+            font-size: 16px;
+            margin: 0;
+        }
+
+        .bill-date {
+            color: #666;
+            font-size: 11px;
+            background: #f0f0f0;
+            padding: 4px 8px;
+            border-radius: 6px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+
+        .bill-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .bill-item:last-child {
+            border-bottom: none;
+            font-weight: 600;
+            color: #333;
+            font-size: 16px;
+            background: #f8f9fa;
+            margin: 10px -18px -18px -18px;
+            padding: 15px 18px;
+            border-radius: 0 0 12px 12px;
+        }
+
+        .bill-item span:first-child {
+            color: #666;
+        }
+
+        .bill-item span:last-child {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .overdue-section {
+            background: #fff5f5;
+            border: 2px solid #fed7d7;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .overdue-section h4 {
+            color: #e53e3e;
+            margin-bottom: 10px;
+        }
+
+        .payment-section {
+            background: #f0fff4;
+            border: 2px solid #c6f6d5;
+            border-radius: 12px;
+            padding: 20px;
+        }
+
+        .payment-info {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .payment-info h4 {
+            color: #38a169;
+            margin-bottom: 10px;
+        }
+
+        .account-info {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .account-info div {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .account-info div:last-child {
+            margin-bottom: 0;
+        }
+
+        .payment-btn {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+
+        .payment-btn:hover {
+            box-shadow: 0 10px 20px rgba(72, 187, 120, 0.3);
+        }
+
+        .copy-btn {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #38a169;
+            border: 2px solid #38a169;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .copy-btn:hover {
+            background: #38a169;
+            color: white;
+        }
+
+        .copy-btn:active {
+            transform: scale(0.98);
+        }
+
+        .error-message {
+            background: #fed7d7;
+            color: #e53e3e;
+            padding: 15px;
+            border-radius: 12px;
+            margin-top: 20px;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .loading::after {
+            content: '...';
+            animation: dots 1.5s infinite;
+        }
+
+        @keyframes dots {
+            0%, 33% { content: '...'; }
+            66% { content: '....'; }
+            100% { content: '.....'; }
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .footer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            text-align: center;
+            padding: 15px 20px;
+            background: rgba(248, 249, 250, 0.95);
+            backdrop-filter: blur(10px);
+            border-top: 1px solid #e1e8ed;
+            color: #666;
+            font-size: 12px;
+            z-index: 100;
+        }
+
+        .kakao-inquiry-btn {
+            margin-top: 10px;
+            padding: 10px 18px;
+            background: #fee500;
+            color: #3c1e1e;
+            border: none;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(254, 229, 0, 0.3);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .kakao-inquiry-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(254, 229, 0, 0.4);
+            background: #ffd700;
+        }
+
+        .kakao-inquiry-btn:active {
+            transform: scale(0.98);
+        }
+
+        @media (min-width: 768px) {
+            .footer {
+                position: static;
+                background: #f8f9fa;
+                backdrop-filter: none;
+                border-top: none;
+            }
+            
+            .content {
+                padding-bottom: 30px;
+            }
+        }
+
+        @media (max-width: 767px) {
+            .header {
+                padding-top: max(20px, env(safe-area-inset-top));
+            }
+            
+            .footer {
+                padding-bottom: max(15px, env(safe-area-inset-bottom));
+            }
+            
+            .search-btn, .payment-btn, .copy-btn, .kakao-inquiry-btn {
+                min-height: 44px;
+            }
+            
+            body {
+                -webkit-overflow-scrolling: touch;
+                overflow-x: hidden;
+            }
+            
+            html {
+                -webkit-text-size-adjust: 100%;
+                text-size-adjust: 100%;
+            }
+        }
+
+        @media (max-width: 767px) and (orientation: landscape) {
+            .header {
+                padding: 15px;
+            }
+            
+            .content {
+                padding: 15px;
+                padding-bottom: 100px;
+            }
+        }
+
+        .connection-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            z-index: 1000;
+        }
+
+        .connection-success {
+            background: #c6f6d5;
+            color: #38a169;
+        }
+
+        .connection-error {
+            background: #fed7d7;
+            color: #e53e3e;
+        }
+    </style>
+</head>
+<body>
+    <div class="connection-status hidden" id="connectionStatus"></div>
+    
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <div class="logo-container">
+                    <img src="https://postfiles.pstatic.net/MjAyNTA2MzBfMzkg/MDAxNzUxMjkwMTc5OTgz.BsP90tcXXRgIld7QMdSDrmVeVTHbjfKB-CR-KhmGmIEg.c0GEmtKAGS8FJnVN1GCFegBFDdt3TDV_euOrF9OD8qEg.PNG/%EB%8D%94%EC%9B%90logo.png?type=w966" 
+                         alt="더원클린앤케어 로고" 
+                         class="company-logo"
+                         onerror="this.style.display='none'">
+                    <div class="header-text">
+                        <h1>더원주택관리</h1>
+                        <p>관리비 조회 및 결제 시스템</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="content">
+            <div class="search-section">
+                <div class="input-group">
+                    <label for="customerName">고객 이름</label>
+                    <input type="text" id="customerName" placeholder="이름을 입력하세요">
+                </div>
+                <div class="input-group">
+                    <label for="phoneNumber">전화번호 끝 4자리</label>
+                    <input type="text" id="phoneNumber" placeholder="전화번호 끝 4자리를 입력하세요" maxlength="4">
+                </div>
+                <button class="search-btn" onclick="searchCustomer()">관리비 조회</button>
+            </div>
+
+            <div class="result-section" id="resultSection">
+                <div class="customer-info" id="customerInfo">
+                    <!-- 고객 정보가 여기에 표시됩니다 -->
+                </div>
+
+                <div class="bill-section" id="billSection">
+                    <!-- 관리비 내역이 여기에 표시됩니다 -->
+                </div>
+
+                <div class="overdue-section hidden" id="overdueSection">
+                    <!-- 미납 내역이 여기에 표시됩니다 -->
+                </div>
+
+                <div class="payment-section" id="paymentSection">
+                    <div class="payment-info">
+                        <h4>💳 간편 결제</h4>
+                        <p>아래 계좌로 이체하시면 자동으로 결제 확인됩니다</p>
+                    </div>
+                    <div class="account-info" id="accountInfo">
+                        <!-- 계좌 정보가 동적으로 로드됩니다 -->
+                    </div>
+                    <button class="payment-btn" onclick="openKakaoBank()">카카오뱅크 이체하기</button>
+                    <button class="copy-btn" onclick="copyAccountInfo()">계좌정보 복사</button>
+                </div>
+            </div>
+
+            <div class="error-message hidden" id="errorMessage">
+                고객 정보를 찾을 수 없습니다. 이름과 전화번호를 다시 확인해주세요.
+            </div>
+        </div>
+
+        <div class="footer">
+            <p id="footerContact">더원클린앤케어 | 문의: 로딩중...</p>
+            <button class="kakao-inquiry-btn" onclick="openKakaoInquiry()">
+                💬 카카오톡 문의하기
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // 구글 시트 API 설정
+        const GOOGLE_SHEET_ID = '1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg';
+        const API_KEY = 'AIzaSyD0tH5ebOAlUMnGrrLKdLAM3EzIuDAfPcA';
+        
+        // 전역 변수
+        let systemSettings = {};
+        let currentCustomer = null;
+        let currentBill = null;
+
+        // 페이지 로드 시 시스템 설정 로드
+        document.addEventListener('DOMContentLoaded', function() {
+            loadSystemSettings();
+        });
+
+        // 시스템 설정 로드
+        async function loadSystemSettings() {
+            try {
+                showConnectionStatus('구글 시트 연결 중...', 'loading');
+                
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/시스템설정!A:E?key=${API_KEY}`
+                );
+                
+                if (!response.ok) {
+                    throw new Error('API 요청 실패');
+                }
+                
+                const data = await response.json();
+                
+                if (data.values && data.values.length > 1) {
+                    // 설정 데이터를 객체로 변환
+                    for (let i = 1; i < data.values.length; i++) {
+                        const row = data.values[i];
+                        if (row[0] && row[1]) {
+                            systemSettings[row[0]] = row[1];
+                        }
+                    }
+                    
+                    // UI 업데이트
+                    updateUIWithSettings();
+                    showConnectionStatus('연결 성공', 'success');
+                    
+                    setTimeout(() => {
+                        document.getElementById('connectionStatus').classList.add('hidden');
+                    }, 3000);
+                } else {
+                    throw new Error('설정 데이터가 없습니다');
+                }
+                
+            } catch (error) {
+                console.error('시스템 설정 로드 오류:', error);
+                showConnectionStatus('연결 실패', 'error');
+            }
+        }
+
+        // 시스템 설정으로 UI 업데이트
+        function updateUIWithSettings() {
+            // 푸터 문의 전화 업데이트
+            const contactPhone = systemSettings.contact_phone || '010-3382-6739';
+            document.getElementById('footerContact').textContent = `더원클린앤케어 | 문의: ${contactPhone}`;
+            
+            // 계좌 정보 업데이트
+            updateAccountInfo();
+        }
+
+        // 계좌 정보 업데이트
+        function updateAccountInfo() {
+            const accountInfo = document.getElementById('accountInfo');
+            const bankName = systemSettings.bank_name || '카카오뱅크';
+            const bankAccount = systemSettings.bank_account || '3333-31-7563438';
+            const accountHolder = systemSettings.account_holder || '채철(더원클린앤케어)';
+            
+            accountInfo.innerHTML = `
+                <div>
+                    <span>은행명:</span>
+                    <span><strong>${bankName}</strong></span>
+                </div>
+                <div>
+                    <span>계좌번호:</span>
+                    <span><strong>${bankAccount}</strong></span>
+                </div>
+                <div>
+                    <span>예금주:</span>
+                    <span><strong>${accountHolder}</strong></span>
+                </div>
+                <div>
+                    <span>납부금액:</span>
+                    <span id="totalAmount"><strong>0원</strong></span>
+                </div>
+            `;
+        }
+
+        // 연결 상태 표시
+        function showConnectionStatus(message, type) {
+            const statusElement = document.getElementById('connectionStatus');
+            statusElement.textContent = message;
+            statusElement.className = `connection-status connection-${type}`;
+            statusElement.classList.remove('hidden');
+        }
+
+        // 고객 검색
+        async function searchCustomer() {
+            const name = document.getElementById('customerName').value.trim();
+            const phone = document.getElementById('phoneNumber').value.trim();
+            
+            if (!name || !phone) {
+                alert('이름과 전화번호를 모두 입력해주세요.');
+                return;
+            }
+
+            if (phone.length !== 4) {
+                alert('전화번호 끝 4자리를 정확히 입력해주세요.');
+                return;
+            }
+
+            showLoading();
+
+            try {
+                // 고객 정보 검색
+                const customer = await findCustomerFromSheet(name, phone);
+                
+                if (customer) {
+                    // 관리비 정보 검색
+                    const bill = await findBillFromSheet(customer.id);
+                    
+                    if (bill) {
+                        currentCustomer = customer;
+                        currentBill = bill;
+                        displayCustomerInfo(customer, bill);
+                    } else {
+                        showError('관리비 정보를 찾을 수 없습니다.');
+                    }
+                } else {
+                    showError();
+                }
+            } catch (error) {
+                console.error('검색 오류:', error);
+                showError('시스템 오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+            }
+        }
+
+        // 구글 시트에서 고객 찾기
+        async function findCustomerFromSheet(name, phone) {
+            try {
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/고객정보!A:M?key=${API_KEY}`
+                );
+                
+                if (!response.ok) {
+                    throw new Error('고객 정보 로드 실패');
+                }
+                
+                const data = await response.json();
+                
+                if (data.values && data.values.length > 1) {
+                    // 헤더 제외하고 검색
+                    for (let i = 1; i < data.values.length; i++) {
+                        const row = data.values[i];
+                        if (row[1] === name && row[3] === phone) {
+                            return {
+                                id: row[0],
+                                name: row[1],
+                                phone: row[2],
+                                phone_last4: row[3],
+                                building: row[4],
+                                unit: row[5],
+                                address: row[6],
+                                kakao_name: row[7],
+                                basic_fee: parseInt(row[8]) || 0,
+                                has_water: row[9] === 'TRUE'
+                            };
+                        }
+                    }
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('고객 검색 오류:', error);
+                throw error;
+            }
+        }
+
+        // 구글 시트에서 관리비 찾기
+        async function findBillFromSheet(customerId) {
+            try {
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/월별관리비!A:L?key=${API_KEY}`
+                );
+                
+                if (!response.ok) {
+                    throw new Error('관리비 정보 로드 실패');
+                }
+                
+                const data = await response.json();
+                
+                if (data.values && data.values.length > 1) {
+                    // 헤더 제외하고 검색
+                    for (let i = 1; i < data.values.length; i++) {
+                        const row = data.values[i];
+                        if (row[1] === customerId) {
+                            return {
+                                bill_id: row[0],
+                                customer_id: row[1],
+                                year_month: row[2],
+                                basic_fee: parseInt(row[3]) || 0,
+                                water_fee: parseInt(row[4]) || 0,
+                                current_total: parseInt(row[5]) || 0,
+                                overdue_amount: parseInt(row[6]) || 0,
+                                total_amount: parseInt(row[7]) || 0,
+                                due_date: row[8],
+                                bill_status: row[9]
+                            };
+                        }
+                    }
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('관리비 검색 오류:', error);
+                throw error;
+            }
+        }
+
+        // 고객 정보 표시
+        function displayCustomerInfo(customer, bill) {
+            document.getElementById('errorMessage').classList.add('hidden');
+            
+            // 고객 정보 표시
+            const customerInfo = document.getElementById('customerInfo');
+            customerInfo.innerHTML = `
+                <h3>👤 고객 정보</h3>
+                <div class="info-item">
+                    <span>이름:</span>
+                    <span>${customer.name}</span>
+                </div>
+                <div class="info-item">
+                    <span>주소:</span>
+                    <span>${customer.address}</span>
+                </div>
+                <div class="info-item">
+                    <span>건물:</span>
+                    <span>${customer.building}</span>
+                </div>
+                <div class="info-item">
+                    <span>호수:</span>
+                    <span>${customer.unit}</span>
+                </div>
+            `;
+
+            // 관리비 내역 표시
+            const billSection = document.getElementById('billSection');
+            const currentDate = new Date();
+            const currentMonth = currentDate.getMonth() + 1;
+            const currentYear = currentDate.getFullYear();
+            
+            let billHTML = `
+                <div class="bill-header">
+                    <h4>📋 ${currentYear}년 ${currentMonth}월 관리비</h4>
+                    <span class="bill-date">납부기한: ${bill.due_date}</span>
+                </div>
+                <div class="bill-item">
+                    <span>기본 관리비</span>
+                    <span>${bill.basic_fee.toLocaleString()}원</span>
+                </div>
+            `;
+
+            if (customer.has_water && bill.water_fee > 0) {
+                billHTML += `
+                    <div class="bill-item">
+                        <span>수도 사용료</span>
+                        <span>${bill.water_fee.toLocaleString()}원</span>
+                    </div>
+                `;
+            }
+
+            billHTML += `
+                <div class="bill-item">
+                    <span>총 납부금액</span>
+                    <span>${bill.total_amount.toLocaleString()}원</span>
+                </div>
+            `;
+
+            billSection.innerHTML = billHTML;
+
+            // 미납 내역 표시
+            const overdueSection = document.getElementById('overdueSection');
+            if (bill.overdue_amount > 0) {
+                overdueSection.classList.remove('hidden');
+                overdueSection.innerHTML = `
+                    <h4>⚠️ 미납 내역</h4>
+                    <div class="bill-item">
+                        <span>미납 금액</span>
+                        <span>${bill.overdue_amount.toLocaleString()}원</span>
+                    </div>
+                    <p style="color: #e53e3e; font-size: 12px; margin-top: 10px;">
+                        미납 금액이 있습니다. 함께 납부해주세요.
+                    </p>
+                `;
+            } else {
+                overdueSection.classList.add('hidden');
+            }
+
+            // 총 납부 금액 업데이트
+            document.getElementById('totalAmount').innerHTML = `<strong>${bill.total_amount.toLocaleString()}원</strong>`;
+
+            // 결과 섹션 표시
+            document.getElementById('resultSection').style.display = 'block';
+        }
+
+        // 로딩 표시
+        function showLoading() {
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('errorMessage').classList.add('hidden');
+            
+            const searchBtn = document.querySelector('.search-btn');
+            const originalText = searchBtn.textContent;
+            searchBtn.textContent = '조회 중...';
+            searchBtn.disabled = true;
+            
+            setTimeout(() => {
+                searchBtn.textContent = originalText;
+                searchBtn.disabled = false;
+            }, 2000);
+        }
+
+        // 오류 표시
+        function showError(message = '고객 정보를 찾을 수 없습니다. 이름과 전화번호를 다시 확인해주세요.') {
+            document.getElementById('resultSection').style.display = 'none';
+            const errorElement = document.getElementById('errorMessage');
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+        }
+
+        // 카카오뱅크 열기
+        function openKakaoBank() {
+            const totalAmount = document.getElementById('totalAmount').textContent.replace(/[^\d]/g, '');
+            
+            // 모바일에서는 카카오뱅크 앱으로, PC에서는 웹으로 연결
+            const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            
+            if (isMobile) {
+                window.location.href = `kakaotalk://bizplugin?plugin_id=kakaobank`;
+            } else {
+                window.open('https://www.kakaobank.com/', '_blank');
+            }
+            
+            // 결제 완료 확인
+            setTimeout(() => {
+                if (confirm('결제가 완료되었나요?')) {
+                    recordPayment();
+                }
+            }, 3000);
+        }
+
+        // 계좌 정보 복사
+        function copyAccountInfo() {
+            const bankName = systemSettings.bank_name || '카카오뱅크';
+            const bankAccount = systemSettings.bank_account || '3333-31-7563438';
+            const accountHolder = systemSettings.account_holder || '채철(더원클린앤케어)';
+            const totalAmount = document.getElementById('totalAmount').textContent;
+            
+            const accountInfo = `${bankName} ${bankAccount} ${accountHolder} ${totalAmount}`;
+            
+            navigator.clipboard.writeText(accountInfo).then(() => {
+                alert('계좌 정보가 복사되었습니다!');
+            }).catch(() => {
+                // 복사 실패 시 수동 복사를 위한 텍스트 선택
+                const textArea = document.createElement('textarea');
+                textArea.value = accountInfo;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('계좌 정보가 복사되었습니다!');
+            });
+        }
+
+        // 카카오톡 문의 열기
+        function openKakaoInquiry() {
+            const kakaoChannel = systemSettings.kakao_channel || 'http://pf.kakao.com/_WxkxnXn/friend';
+            window.open(kakaoChannel, '_blank');
+        }
+
+        // 결제 정보 기록
+        async function recordPayment() {
+            if (!currentCustomer || !currentBill) {
+                alert('고객 정보가 없습니다.');
+                return;
+            }
+
+            try {
+                const paymentTime = new Date().toLocaleString('ko-KR', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit'
+                });
+
+                const paymentId = `PAY_${Date.now()}`;
+                
+                // 결제 데이터 준비
+                const paymentData = [
+                    paymentId,                              // payment_id
+                    currentBill.bill_id,                    // bill_id
+                    currentCustomer.id,                     // customer_id
+                    currentCustomer.name,                   // customer_name
+                    currentCustomer.phone_last4,            // phone_last4
+                    currentBill.year_month,                 // year_month
+                    currentBill.total_amount,               // payment_amount
+                    paymentTime,                           // payment_date
+                    '카카오뱅크이체',                        // payment_method
+                    '확인대기',                             // confirmation_status
+                    '',                                    // confirmed_by
+                    '',                                    // confirmed_date
+                    '웹앱을 통한 결제'                       // notes
+                ];
+
+                // 구글 시트에 결제 정보 추가
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_ID}/values/결제내역!A:M:append?valueInputOption=RAW&key=${API_KEY}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            values: [paymentData]
+                        })
+                    }
+                );
+
+                if (response.ok) {
+                    alert('결제 정보가 성공적으로 기록되었습니다.\n관리자가 확인 후 처리됩니다.\n감사합니다!');
+                    
+                    // 결과 화면 초기화
+                    document.getElementById('resultSection').style.display = 'none';
+                    document.getElementById('customerName').value = '';
+                    document.getElementById('phoneNumber').value = '';
+                    
+                } else {
+                    throw new Error('결제 정보 저장 실패');
+                }
+
+            } catch (error) {
+                console.error('결제 기록 오류:', error);
+                alert('결제 정보 기록 중 오류가 발생했습니다.\n직접 문의해주세요.');
+            }
+        }
+
+        // 엔터키 입력 시 검색
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const activeElement = document.activeElement;
+                if (activeElement.id === 'customerName' || activeElement.id === 'phoneNumber') {
+                    searchCustomer();
+                }
+            }
+        });
+
+        // 전화번호 입력 시 숫자만 허용
+        document.getElementById('phoneNumber').addEventListener('input', function(e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        // 초기화 함수
+        function resetForm() {
+            document.getElementById('customerName').value = '';
+            document.getElementById('phoneNumber').value = '';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('errorMessage').classList.add('hidden');
+            currentCustomer = null;
+            currentBill = null;
+        }
+
+        // 개발자 도구
+        console.log(`
+🚀 더원주택관리 시스템 로드 완료!
+
+📊 연동 정보:
+- 구글 시트 ID: ${GOOGLE_SHEET_ID}
+- API 키: ${API_KEY.substring(0, 10)}...
+
+🧪 테스트 고객 정보:
+- 손민지 + 4915 (운정힐스 101호)
+- 임보나 + 9213 (운정힐스 102호)  
+- 권민성 + 8727 (노블힐스 202호, 미납 있음)
+
+💻 시스템 상태: 준비 완료
+        `);
+    </script>
+</body>
+</html>

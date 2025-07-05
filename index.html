@@ -267,9 +267,13 @@
         }
 
         .service-icon {
-            font-size: 48px;
+            width: 80px;
+            height: 80px;
             margin-bottom: 20px;
             display: block;
+            object-fit: cover;
+            border-radius: 12px;
+            margin: 0 auto 20px auto;
         }
 
         .service-card h3 {
@@ -557,9 +561,7 @@
     <header class="header">
         <nav class="nav-container">
             <a href="#" class="logo">
-                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #87CEEB 0%, #4682B4 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                    <div style="width: 16px; height: 16px; background: white; border-radius: 50%;"></div>
-                </div>
+                <img src="https://github.com/buydori/theone/blob/main/images/homepagelogo.png" alt="더원클린앤케어 로고" style="width: 40px; height: 40px; object-fit: contain;">
                 <span class="logo-text">더원클린앤케어</span>
             </a>
             
@@ -609,31 +611,31 @@
             
             <div class="services-grid">
                 <div class="service-card fade-in" onclick="location.href='services.html#housing'">
-                    <span class="service-icon">🏠</span>
+                    <img src="https://github.com/buydori/theone/blob/main/images/housing.jpg" alt="주택관리" class="service-icon">
                     <h3>주택관리</h3>
                     <p>종합적인 주택 관리 서비스로 편안한 주거환경을 만들어드립니다</p>
                 </div>
                 
                 <div class="service-card fade-in" onclick="location.href='services.html#regular'">
-                    <span class="service-icon">✨</span>
+                    <img src="https://github.com/buydori/theone/blob/main/images/cleanplan.jpg" alt="정기청소" class="service-icon">
                     <h3>정기청소</h3>
                     <p>주기적인 전문 청소로 항상 깨끗한 공간을 유지하세요</p>
                 </div>
                 
                 <div class="service-card fade-in" onclick="location.href='services.html#aircon'">
-                    <span class="service-icon">❄️</span>
+                    <img src="https://github.com/buydori/theone/blob/main/images/aircon.jpg" alt="에어컨청소" class="service-icon">
                     <h3>에어컨청소</h3>
                     <p>에어컨 내부 깊숙한 곳까지 완벽하게 청소하여 깨끗한 공기를 제공합니다</p>
                 </div>
                 
                 <div class="service-card fade-in" onclick="location.href='services.html#mattress'">
-                    <span class="service-icon">🛏️</span>
+                    <img src="https://github.com/buydori/theone/blob/main/images/mattress.jpg" alt="매트리스청소" class="service-icon">
                     <h3>매트리스청소</h3>
                     <p>진드기와 세균을 완벽 제거하여 건강한 수면환경을 조성합니다</p>
                 </div>
                 
                 <div class="service-card fade-in" onclick="location.href='services.html#washing'">
-                    <span class="service-icon">🧺</span>
+                    <img src="https://github.com/buydori/theone/blob/main/images/washmachine.jpg" alt="세탁기청소" class="service-icon">
                     <h3>세탁기청소</h3>
                     <p>세탁기 내부 곰팡이와 세균을 제거하여 깨끗한 세탁을 보장합니다</p>
                 </div>

@@ -94,12 +94,49 @@
             padding: 5px;
         }
 
-        .mobile-menu-btn span {
-            width: 25px;
-            height: 2px;
-            background: #000000;
-            margin: 3px 0;
-            transition: 0.3s;
+        /* Dropdown Menu */
+        .dropdown {
+            position: relative;
+        }
+
+        .dropdown-content {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: #ffffff;
+            border: 1px solid rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            min-width: 180px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s ease;
+        }
+
+        .dropdown-content.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .dropdown-content a {
+            display: block;
+            padding: 12px 16px;
+            color: #000000;
+            text-decoration: none;
+            font-size: 14px;
+            transition: background 0.3s ease;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+        }
+
+        .dropdown-content a:last-child {
+            border-bottom: none;
+        }
+
+        .dropdown-content a:hover {
+            background: #f5f5f5;
+            color: #000000;
         }
 
         /* Hero Section */
@@ -452,8 +489,10 @@
                 padding: 60px 15px;
             }
 
-            .service-card {
-                padding: 30px 20px;
+            @media (max-width: 480px) {
+                .hero {
+                    background-attachment: scroll;
+                }
             }
         }
 
@@ -527,7 +566,13 @@
                 <li><a href="quote.html">견적문의</a></li>
                 <li><a href="https://blog.naver.com/theonecc" target="_blank">블로그</a></li>
                 <li><a href="https://www.youtube.com/channel/UCbl65_hWDrsir039C7XDFrw" target="_blank">유튜브</a></li>
-                <li><a href="management.html">바로가기</a></li>
+                <li class="dropdown">
+                    <a href="#" onclick="toggleDropdown(event)">바로가기 ▼</a>
+                    <div class="dropdown-content" id="dropdownMenu">
+                        <a href="management.html">관리비 조회/결제</a>
+                        <a href="admin.html">관리자 시스템</a>
+                    </div>
+                </li>
             </ul>
             
             <div class="mobile-menu-btn" onclick="toggleMobileMenu()">
@@ -541,7 +586,7 @@
     <!-- Hero Section -->
     <section id="home" class="hero">
         <div class="hero-container">
-            <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAwIiBoZWlnaHQ9IjMwMCIgdmlld0JveD0iMCAwIDYwMCAzMDAiIGZpbGw9Im5vbmUiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+CjxyZWN0IHdpZHRoPSI2MDAiIGhlaWdodD0iMzAwIiBmaWxsPSIjRjVGNUY1Ii8+CjxjaXJjbGUgY3g9IjMwMCIgY3k9IjE1MCIgcj0iNDAiIGZpbGw9IiM4N0NFRUI7LyoqIGJsdWUgKi8iLz4KPGC4cmNsZSBjeD0iMzAwIiBjeT0iMTUwIiByPSIyMCIgZmlsbD0id2hpdGUiLz4KPHR4dCB4PSIzMDAiIHk9IjIwMCIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZmlsbD0iIzMzMzMzMyIgZm9udC1mYW1pbHk9IkFyaWFsIiBmb250LXNpemU9IjE2IiBmb250LXdlaWdodD0iYm9sZCI+7KCE66y47KGAIOy7rOu7sCDrhLjroZwg7YyM7KO8PC90ZXh0Pgo8L3N2Zz4K" 
+            <img src="images/main.jpg" 
                  alt="더원클린앤케어 전문 청소 서비스" 
                  class="hero-image fade-in">
             
@@ -637,7 +682,8 @@
                 <a href="quote.html">견적문의</a>
                 <a href="https://blog.naver.com/theonecc" target="_blank">블로그</a>
                 <a href="https://www.youtube.com/channel/UCbl65_hWDrsir039C7XDFrw" target="_blank">유튜브</a>
-                <a href="management.html">바로가기</a>
+                <a href="management.html">관리비 조회</a>
+                <a href="admin.html">관리자</a>
             </div>
             
             <div class="footer-bottom">
@@ -657,6 +703,23 @@
             setTimeout(() => {
                 document.getElementById('loading').classList.add('hidden');
             }, 800);
+        });
+
+        // Dropdown Menu Toggle
+        function toggleDropdown(event) {
+            event.preventDefault();
+            const dropdown = document.getElementById('dropdownMenu');
+            dropdown.classList.toggle('show');
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const dropdown = document.getElementById('dropdownMenu');
+            const dropdownParent = event.target.closest('.dropdown');
+            
+            if (!dropdownParent && dropdown) {
+                dropdown.classList.remove('show');
+            }
         });
 
         // Mobile Menu Toggle

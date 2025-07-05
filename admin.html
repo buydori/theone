@@ -834,6 +834,9 @@
             } catch (error) {
                 console.error('GAPI 로드 오류:', error);
                 updateConnectionStatus('GAPI 로드 실패', false);
+                setTimeout(() => {
+                    document.getElementById('loading').classList.add('hidden');
+                }, 2000);
             }
         }
 

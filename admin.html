@@ -94,6 +94,7 @@
     </style>
 </head>
 <body>
+    <h1 style="color:red;">테스트: 이 문구가 보이면 HTML은 정상입니다.</h1>
     <div class="admin-container">
         <div class="admin-header">
             <div class="admin-title">
@@ -157,3 +158,17 @@
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
+    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
+    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script>
+      function gapiLoaded() {
+        console.log('gapiLoaded called');
+      }
+      function gisLoaded() {
+        console.log('gisLoaded called');
+      }
+    </script>
+</body>
+</html> 

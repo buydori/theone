@@ -409,11 +409,12 @@
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '고객정보!A2', // 시트 이름과 범위 수정
+                    range: '고객정보!A2:Z', // 시트 이름과 범위 수정
                 });
                 customersData = response.result.values || [];
                 renderCustomers();
             } catch (e) {
+                console.error(e); // 추가
                 showAlert('고객 데이터 불러오기 실패: ' + e.message, 'error');
             }
         }
@@ -422,11 +423,12 @@
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '월별관리비!A2', // 시트 이름과 범위 수정
+                    range: '월별관리비!A2:Z', // 시트 이름과 범위 수정
                 });
                 billsData = response.result.values || [];
                 renderBills();
             } catch (e) {
+                console.error(e); // 추가
                 showAlert('관리비 데이터 불러오기 실패: ' + e.message, 'error');
             }
         }
@@ -435,11 +437,12 @@
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '결제내역!A2', // 시트 이름과 범위 수정
+                    range: '결제내역!A2:Z', // 시트 이름과 범위 수정
                 });
                 paymentsData = response.result.values || [];
                 renderPayments();
             } catch (e) {
+                console.error(e); // 추가
                 showAlert('결제 데이터 불러오기 실패: ' + e.message, 'error');
             }
         }

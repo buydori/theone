@@ -161,20 +161,63 @@
             <div class="tab-content" id="customers">
                 <div class="section-header">
                     <h2 class="section-title">👥 고객 목록</h2>
-                    <button class="btn btn-primary" onclick="refreshCustomers()">🔄 새로고침</button>
+                    <div>
+                        <button class="btn btn-success" onclick="openCustomerModal()">➕ 고객 추가</button>
+                        <button class="btn btn-primary" onclick="refreshCustomers()">🔄 새로고침</button>
+                    </div>
                 </div>
-                <div class="data-table">
-                    <thead>
-                        <tr>
-                            <th>이름</th>
-                            <th>연락처</th>
-                            <th>주소</th>
-                            <th>등록일</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <!-- 고객 데이터가 여기에 표시됩니다 -->
-                    </tbody>
+                <div id="customersTableContainer"></div>
+            </div>
+            <!-- 고객 추가/수정 모달 -->
+            <div class="modal" id="customerModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <span class="modal-title" id="customerModalTitle">고객 추가</span>
+                        <button class="modal-close" onclick="closeCustomerModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="customerForm">
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label for="customer_name">이름</label>
+                                    <input type="text" id="customer_name" name="customer_name" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="phone_full">연락처</label>
+                                    <input type="text" id="phone_full" name="phone_full" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="address">주소</label>
+                                    <input type="text" id="address" name="address" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="created_date">등록일</label>
+                                    <input type="date" id="created_date" name="created_date" required>
+                                </div>
+                            </div>
+                            <input type="hidden" id="customerRowIndex" name="customerRowIndex">
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" onclick="submitCustomerForm()">저장</button>
+                        <button class="btn btn-secondary" onclick="closeCustomerModal()">취소</button>
+                    </div>
+                </div>
+            </div>
+            <!-- 삭제 확인 모달 -->
+            <div class="modal" id="deleteModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <span class="modal-title">고객 삭제 확인</span>
+                        <button class="modal-close" onclick="closeDeleteModal()">&times;</button>
+                    </div>
+                    <div class="modal-body">
+                        <p>정말로 이 고객을 삭제하시겠습니까?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-danger" id="confirmDeleteBtn">삭제</button>
+                        <button class="btn btn-secondary" onclick="closeDeleteModal()">취소</button>
+                    </div>
                 </div>
             </div>
             <!-- 관리비 관리 탭 -->
@@ -449,18 +492,27 @@
 
         // 데이터 렌더링 함수들 (간단 예시)
         function renderCustomers() {
-            const tab = document.getElementById('customers');
-            if (!tab) return;
-            let html = '<table class="data-table"><thead><tr><th>이름</th><th>연락처</th><th>주소</th><th>등록일</th></tr></thead><tbody>';
+            const container = document.getElementById('customersTableContainer');
+            if (!container) return;
+            let html = '<table class="data-table"><thead><tr><th>이름</th><th>연락처</th><th>주소</th><th>등록일</th><th>관리</th></tr></thead><tbody>';
             if (customersData.length === 0) {
-                html += '<tr><td colspan="4" style="text-align:center;">고객 데이터가 없습니다.</td></tr>';
+                html += '<tr><td colspan="5" style="text-align:center;">고객 데이터가 없습니다.</td></tr>';
             } else {
-                customersData.forEach(row => {
-                    html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
+                customersData.forEach((row, idx) => {
+                    html += `<tr>
+                        <td>${safeString(row[0])}</td>
+                        <td>${safeString(row[1])}</td>
+                        <td>${safeString(row[2])}</td>
+                        <td>${safeString(row[3])}</td>
+                        <td>
+                            <button class='btn btn-sm btn-primary' onclick='openEditCustomerModal(${idx})'>수정</button>
+                            <button class='btn btn-sm btn-danger' onclick='openDeleteModal(${idx})'>삭제</button>
+                        </td>
+                    </tr>`;
                 });
             }
             html += '</tbody></table>';
-            tab.innerHTML = html;
+            container.innerHTML = html;
         }
 
         function renderBills() {
@@ -546,6 +598,120 @@
         function refreshSettings() {
             showAlert('설정은 읽기 전용입니다.', 'info');
         }
+
+        // 고객 추가/수정 모달 열기
+        function openCustomerModal() {
+            document.getElementById('customerModalTitle').textContent = '고객 추가';
+            document.getElementById('customerForm').reset();
+            document.getElementById('customerRowIndex').value = '';
+            document.getElementById('customerModal').classList.add('show');
+        }
+        function closeCustomerModal() {
+            document.getElementById('customerModal').classList.remove('show');
+        }
+        // 고객 수정 모달 열기
+        function openEditCustomerModal(idx) {
+            const row = customersData[idx];
+            document.getElementById('customerModalTitle').textContent = '고객 수정';
+            document.getElementById('customer_name').value = safeString(row[0]);
+            document.getElementById('phone_full').value = safeString(row[1]);
+            document.getElementById('address').value = safeString(row[2]);
+            document.getElementById('created_date').value = safeString(row[3]);
+            document.getElementById('customerRowIndex').value = idx;
+            document.getElementById('customerModal').classList.add('show');
+        }
+        // 삭제 모달 열기/닫기
+        let deleteTargetIdx = null;
+        function openDeleteModal(idx) {
+            deleteTargetIdx = idx;
+            document.getElementById('deleteModal').classList.add('show');
+        }
+        function closeDeleteModal() {
+            deleteTargetIdx = null;
+            document.getElementById('deleteModal').classList.remove('show');
+        }
+        // 시트 ID 조회 함수 (고객정보 시트)
+        async function getSheetIdByName(sheetName) {
+            const res = await gapi.client.sheets.spreadsheets.get({
+                spreadsheetId: GOOGLE_SHEET_ID
+            });
+            const sheet = res.result.sheets.find(s => s.properties.title === sheetName);
+            return sheet ? sheet.properties.sheetId : null;
+        }
+
+        // 고객 폼 제출 핸들러 (추가/수정)
+        async function submitCustomerForm() {
+            const name = document.getElementById('customer_name').value.trim();
+            const phone = document.getElementById('phone_full').value.trim();
+            const address = document.getElementById('address').value.trim();
+            const created = document.getElementById('created_date').value.trim();
+            const idx = document.getElementById('customerRowIndex').value;
+            if (!name || !phone || !address || !created) {
+                showAlert('모든 항목을 입력해주세요.', 'warning');
+                return;
+            }
+            const values = [[name, phone, address, created]];
+            try {
+                if (idx === '') {
+                    // 추가 (append)
+                    await gapi.client.sheets.spreadsheets.values.append({
+                        spreadsheetId: GOOGLE_SHEET_ID,
+                        range: '고객정보!A2',
+                        valueInputOption: 'USER_ENTERED',
+                        insertDataOption: 'INSERT_ROWS',
+                        resource: { values }
+                    });
+                    showAlert('고객이 추가되었습니다.', 'success');
+                } else {
+                    // 수정 (update)
+                    const rowNumber = parseInt(idx) + 2; // A2가 customersData[0]
+                    await gapi.client.sheets.spreadsheets.values.update({
+                        spreadsheetId: GOOGLE_SHEET_ID,
+                        range: `고객정보!A${rowNumber}:D${rowNumber}`,
+                        valueInputOption: 'USER_ENTERED',
+                        resource: { values }
+                    });
+                    showAlert('고객 정보가 수정되었습니다.', 'success');
+                }
+                closeCustomerModal();
+                await loadCustomers();
+            } catch (e) {
+                console.error(e);
+                showAlert('고객 정보 저장 실패: ' + e.message, 'error');
+            }
+        }
+
+        // 삭제 버튼 핸들러 연결
+        document.getElementById('confirmDeleteBtn').onclick = async function() {
+            if (deleteTargetIdx !== null) {
+                try {
+                    const sheetId = await getSheetIdByName('고객정보');
+                    if (sheetId === null) throw new Error('시트 ID를 찾을 수 없습니다.');
+                    const rowIndex = parseInt(deleteTargetIdx) + 1; // 0-based, A2가 index 0이지만 row 1 (A1은 헤더)
+                    await gapi.client.sheets.spreadsheets.batchUpdate({
+                        spreadsheetId: GOOGLE_SHEET_ID,
+                        resource: {
+                            requests: [{
+                                deleteDimension: {
+                                    range: {
+                                        sheetId: sheetId,
+                                        dimension: 'ROWS',
+                                        startIndex: rowIndex + 1, // 헤더(0), A2(1), A3(2)...
+                                        endIndex: rowIndex + 2
+                                    }
+                                }
+                            }]
+                        }
+                    });
+                    showAlert('고객이 삭제되었습니다.', 'success');
+                    await loadCustomers();
+                } catch (e) {
+                    console.error(e);
+                    showAlert('고객 삭제 실패: ' + e.message, 'error');
+                }
+            }
+            closeDeleteModal();
+        };
 
         // 페이지 로드 시 초기화
         document.addEventListener('DOMContentLoaded', function() {

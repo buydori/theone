@@ -94,7 +94,6 @@
     </style>
 </head>
 <body>
-    <h1 style="color:red;">테스트: 이 문구가 보이면 HTML은 정상입니다.</h1>
     <div class="admin-container">
         <div class="admin-header">
             <div class="admin-title">
@@ -269,6 +268,7 @@
                 showAlert('Google API가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.', 'warning');
             }
         }
+        window.handleAuthClick = handleAuthClick;
 
         // 로그아웃
         function handleSignoutClick() {
@@ -277,6 +277,7 @@
             }
             setSigninStatus(false);
         }
+        window.handleSignoutClick = handleSignoutClick;
 
         // GAPI 로드 완료 콜백
         function gapiLoaded() {

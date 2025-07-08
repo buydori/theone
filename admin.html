@@ -409,7 +409,7 @@
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '고객!A2:E', // '고객' 시트의 A2~E열 (필요시 범위 조정)
+                    range: '고객정보!A2', // 시트 이름과 범위 수정
                 });
                 customersData = response.result.values || [];
                 renderCustomers();
@@ -422,7 +422,7 @@
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '관리비!A2:E', // '관리비' 시트의 A2~E열 (필요시 범위 조정)
+                    range: '월별관리비!A2', // 시트 이름과 범위 수정
                 });
                 billsData = response.result.values || [];
                 renderBills();
@@ -435,7 +435,7 @@
             try {
                 const response = await gapi.client.sheets.spreadsheets.values.get({
                     spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '결제!A2:E', // '결제' 시트의 A2~E열 (필요시 범위 조정)
+                    range: '결제내역!A2', // 시트 이름과 범위 수정
                 });
                 paymentsData = response.result.values || [];
                 renderPayments();

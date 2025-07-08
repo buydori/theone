@@ -157,6 +157,86 @@
                     </div>
                 </div>
             </div>
+            <!-- 고객 관리 탭 -->
+            <div class="tab-content" id="customers">
+                <div class="section-header">
+                    <h2 class="section-title">👥 고객 목록</h2>
+                    <button class="btn btn-primary" onclick="refreshCustomers()">🔄 새로고침</button>
+                </div>
+                <div class="data-table">
+                    <thead>
+                        <tr>
+                            <th>이름</th>
+                            <th>연락처</th>
+                            <th>주소</th>
+                            <th>등록일</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 고객 데이터가 여기에 표시됩니다 -->
+                    </tbody>
+                </div>
+            </div>
+            <!-- 관리비 관리 탭 -->
+            <div class="tab-content" id="bills">
+                <div class="section-header">
+                    <h2 class="section-title">💰 관리비 목록</h2>
+                    <button class="btn btn-primary" onclick="refreshBills()">🔄 새로고침</button>
+                </div>
+                <div class="data-table">
+                    <thead>
+                        <tr>
+                            <th>고객명</th>
+                            <th>월</th>
+                            <th>금액</th>
+                            <th>납부여부</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 관리비 데이터가 여기에 표시됩니다 -->
+                    </tbody>
+                </div>
+            </div>
+            <!-- 결제 확인 탭 -->
+            <div class="tab-content" id="payments">
+                <div class="section-header">
+                    <h2 class="section-title">💳 결제 내역</h2>
+                    <button class="btn btn-primary" onclick="refreshPayments()">🔄 새로고침</button>
+                </div>
+                <div class="data-table">
+                    <thead>
+                        <tr>
+                            <th>고객명</th>
+                            <th>결제일</th>
+                            <th>금액</th>
+                            <th>결제수단</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- 결제 데이터가 여기에 표시됩니다 -->
+                    </tbody>
+                </div>
+            </div>
+            <!-- 설정 탭 -->
+            <div class="tab-content" id="settings">
+                <div class="section-header">
+                    <h2 class="section-title">⚙️ 시스템 설정</h2>
+                    <button class="btn btn-primary" onclick="refreshSettings()">🔄 새로고침</button>
+                </div>
+                <div class="card">
+                    <h3>시스템 설정</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="googleSheetId">Google 시트 ID:</label>
+                            <input type="text" id="googleSheetId" value="1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="apiKey">API Key:</label>
+                            <input type="text" id="apiKey" value="AIzaSyD0tH5ebOAlUMnGrrLKdLAM3EzIuDAfPcA" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
@@ -324,11 +404,99 @@
             checkIfReady();
         }
 
-        // 모든 데이터 로드
+        // 구글 시트 데이터 로드 함수들 구현
+        async function loadCustomers() {
+            try {
+                const response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: GOOGLE_SHEET_ID,
+                    range: '고객!A2:E', // '고객' 시트의 A2~E열 (필요시 범위 조정)
+                });
+                customersData = response.result.values || [];
+                renderCustomers();
+            } catch (e) {
+                showAlert('고객 데이터 불러오기 실패: ' + e.message, 'error');
+            }
+        }
+
+        async function loadBills() {
+            try {
+                const response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: GOOGLE_SHEET_ID,
+                    range: '관리비!A2:E', // '관리비' 시트의 A2~E열 (필요시 범위 조정)
+                });
+                billsData = response.result.values || [];
+                renderBills();
+            } catch (e) {
+                showAlert('관리비 데이터 불러오기 실패: ' + e.message, 'error');
+            }
+        }
+
+        async function loadPayments() {
+            try {
+                const response = await gapi.client.sheets.spreadsheets.values.get({
+                    spreadsheetId: GOOGLE_SHEET_ID,
+                    range: '결제!A2:E', // '결제' 시트의 A2~E열 (필요시 범위 조정)
+                });
+                paymentsData = response.result.values || [];
+                renderPayments();
+            } catch (e) {
+                showAlert('결제 데이터 불러오기 실패: ' + e.message, 'error');
+            }
+        }
+
+        // 데이터 렌더링 함수들 (간단 예시)
+        function renderCustomers() {
+            const tab = document.getElementById('customers');
+            if (!tab) return;
+            let html = '<table class="data-table"><thead><tr><th>이름</th><th>연락처</th><th>주소</th><th>등록일</th></tr></thead><tbody>';
+            if (customersData.length === 0) {
+                html += '<tr><td colspan="4" style="text-align:center;">고객 데이터가 없습니다.</td></tr>';
+            } else {
+                customersData.forEach(row => {
+                    html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
+                });
+            }
+            html += '</tbody></table>';
+            tab.innerHTML = html;
+        }
+
+        function renderBills() {
+            const tab = document.getElementById('bills');
+            if (!tab) return;
+            let html = '<table class="data-table"><thead><tr><th>고객명</th><th>월</th><th>금액</th><th>납부여부</th></tr></thead><tbody>';
+            if (billsData.length === 0) {
+                html += '<tr><td colspan="4" style="text-align:center;">관리비 데이터가 없습니다.</td></tr>';
+            } else {
+                billsData.forEach(row => {
+                    html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
+                });
+            }
+            html += '</tbody></table>';
+            tab.innerHTML = html;
+        }
+
+        function renderPayments() {
+            const tab = document.getElementById('payments');
+            if (!tab) return;
+            let html = '<table class="data-table"><thead><tr><th>고객명</th><th>결제일</th><th>금액</th><th>결제수단</th></tr></thead><tbody>';
+            if (paymentsData.length === 0) {
+                html += '<tr><td colspan="4" style="text-align:center;">결제 데이터가 없습니다.</td></tr>';
+            } else {
+                paymentsData.forEach(row => {
+                    html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
+                });
+            }
+            html += '</tbody></table>';
+            tab.innerHTML = html;
+        }
+
+        // loadAllData에서 각 데이터 로드
         async function loadAllData() {
             try {
                 showAlert('데이터를 불러오는 중...', 'info');
-                // 실제 데이터 로드 함수들은 추후 구현
+                await loadCustomers();
+                await loadBills();
+                await loadPayments();
                 showAlert('데이터 로드 완료', 'success');
             } catch (e) {
                 showAlert('데이터 로드 중 오류: ' + e.message, 'error');
@@ -342,6 +510,38 @@
                 return;
             }
             showAlert('대시보드가 새로고침되었습니다.', 'success');
+        }
+
+        // 고객 목록 새로고침
+        function refreshCustomers() {
+            if (!isAuthorized) {
+                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+                return;
+            }
+            loadCustomers();
+        }
+
+        // 관리비 목록 새로고침
+        function refreshBills() {
+            if (!isAuthorized) {
+                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+                return;
+            }
+            loadBills();
+        }
+
+        // 결제 내역 새로고침
+        function refreshPayments() {
+            if (!isAuthorized) {
+                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+                return;
+            }
+            loadPayments();
+        }
+
+        // 설정 새로고침 (현재는 읽기 전용이므로 구현 안 함)
+        function refreshSettings() {
+            showAlert('설정은 읽기 전용입니다.', 'info');
         }
 
         // 페이지 로드 시 초기화

@@ -500,10 +500,10 @@
             } else {
                 customersData.forEach((row, idx) => {
                     html += `<tr>
-                        <td>${safeString(row[0])}</td>
-                        <td>${safeString(row[1])}</td>
-                        <td>${safeString(row[2])}</td>
-                        <td>${safeString(row[3])}</td>
+                        <td>${safeString(row[1])}</td>   // name
+                        <td>${safeString(row[2])}</td>   // phone_full
+                        <td>${safeString(row[6])}</td>   // address
+                        <td>${safeString(row[11])}</td>  // created_date
                         <td>
                             <button class='btn btn-sm btn-primary' onclick='openEditCustomerModal(${idx})'>수정</button>
                             <button class='btn btn-sm btn-danger' onclick='openDeleteModal(${idx})'>삭제</button>
@@ -613,10 +613,10 @@
         function openEditCustomerModal(idx) {
             const row = customersData[idx];
             document.getElementById('customerModalTitle').textContent = '고객 수정';
-            document.getElementById('customer_name').value = safeString(row[0]);
-            document.getElementById('phone_full').value = safeString(row[1]);
-            document.getElementById('address').value = safeString(row[2]);
-            document.getElementById('created_date').value = safeString(row[3]);
+            document.getElementById('customer_name').value = safeString(row[1]); // name
+            document.getElementById('phone_full').value = safeString(row[2]); // phone_full
+            document.getElementById('address').value = safeString(row[6]); // address
+            document.getElementById('created_date').value = safeString(row[11]); // created_date
             document.getElementById('customerRowIndex').value = idx;
             document.getElementById('customerModal').classList.add('show');
         }
@@ -650,10 +650,56 @@
                 showAlert('모든 항목을 입력해주세요.', 'warning');
                 return;
             }
-            const values = [[name, phone, address, created]];
+            const phone_last4 = phone.slice(-4);
+            const updated_date = new Date().toISOString().slice(0, 10);
+            let values;
+            if (idx === '') {
+                // 신규 등록: customer_id 자동 생성 (CUST_XXX)
+                let maxId = 0;
+                customersData.forEach(row => {
+                    const id = row[0];
+                    if (id && id.startsWith('CUST_')) {
+                        const num = parseInt(id.replace('CUST_', ''));
+                        if (!isNaN(num) && num > maxId) maxId = num;
+                    }
+                });
+                const newId = 'CUST_' + String(maxId + 1).padStart(3, '0');
+                values = [[
+                    newId, // customer_id
+                    name,  // name
+                    phone, // phone_full
+                    phone_last4, // phone_last4
+                    '', // building_name
+                    '', // unit_number
+                    address, // address
+                    '', // kakao_name
+                    '', // basic_fee
+                    '', // has_water
+                    '', // status
+                    created, // created_date
+                    updated_date // updated_date
+                ]];
+            } else {
+                // 수정: 기존 row 값 유지, 입력값만 반영
+                const old = customersData[idx];
+                values = [[
+                    old[0], // customer_id
+                    name,
+                    phone,
+                    phone_last4,
+                    old[4] || '', // building_name
+                    old[5] || '', // unit_number
+                    address,
+                    old[7] || '', // kakao_name
+                    old[8] || '', // basic_fee
+                    old[9] || '', // has_water
+                    old[10] || '', // status
+                    created,
+                    updated_date
+                ]];
+            }
             try {
                 if (idx === '') {
-                    // 추가 (append)
                     await gapi.client.sheets.spreadsheets.values.append({
                         spreadsheetId: GOOGLE_SHEET_ID,
                         range: '고객정보!A2',
@@ -663,11 +709,10 @@
                     });
                     showAlert('고객이 추가되었습니다.', 'success');
                 } else {
-                    // 수정 (update)
-                    const rowNumber = parseInt(idx) + 2; // A2가 customersData[0]
+                    const rowNumber = parseInt(idx) + 2;
                     await gapi.client.sheets.spreadsheets.values.update({
                         spreadsheetId: GOOGLE_SHEET_ID,
-                        range: `고객정보!A${rowNumber}:D${rowNumber}`,
+                        range: `고객정보!A${rowNumber}:M${rowNumber}`,
                         valueInputOption: 'USER_ENTERED',
                         resource: { values }
                     });

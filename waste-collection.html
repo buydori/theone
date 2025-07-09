@@ -65,6 +65,7 @@
             font-size: 1.1rem;
             font-weight: 600;
             transition: all 0.3s;
+            color: #6b7280;
         }
 
         .tab.active {
@@ -72,11 +73,7 @@
             color: white;
         }
 
-        .tab:not(.active) {
-            color: #6b7280;
-        }
-
-        .tab:not(.active):hover {
+        .tab:hover:not(.active) {
             background: #f3f4f6;
         }
 
@@ -87,87 +84,8 @@
             padding: 30px;
         }
 
-        .search-box {
-            margin-bottom: 30px;
-        }
-
-        .search-input {
-            width: 100%;
-            padding: 15px 20px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            font-size: 1rem;
-            margin-bottom: 15px;
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: #2563eb;
-        }
-
-        .search-btn {
-            width: 100%;
-            padding: 15px;
-            background: #2563eb;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 600;
-            cursor: pointer;
-        }
-
-        .search-btn:hover {
-            background: #1d4ed8;
-        }
-
-        .result {
-            background: #ecfdf5;
-            border: 2px solid #10b981;
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 20px;
-        }
-
-        .result h3 {
-            color: #065f46;
-            margin-bottom: 15px;
-            font-size: 1.2rem;
-        }
-
-        .result-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        .result-item {
-            text-align: center;
-        }
-
-        .result-label {
-            font-size: 0.9rem;
-            color: #065f46;
-            margin-bottom: 5px;
-        }
-
-        .result-value {
-            font-weight: 600;
-            color: #111827;
-        }
-
-        .phone-link {
-            display: inline-block;
-            background: #10b981;
-            color: white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            text-decoration: none;
-            font-weight: 600;
-        }
-
-        .phone-link:hover {
-            background: #059669;
+        .hidden {
+            display: none;
         }
 
         table {
@@ -192,12 +110,26 @@
             background: #f9fafb;
         }
 
+        .phone-link {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .phone-link:hover {
+            background: #059669;
+        }
+
         .notice {
             background: #fef3c7;
             border: 2px solid #f59e0b;
             border-radius: 8px;
             padding: 20px;
-            margin-top: 30px;
+            margin-bottom: 30px;
         }
 
         .notice h4 {
@@ -286,10 +218,6 @@
             background: #1d4ed8;
         }
 
-        .hidden {
-            display: none;
-        }
-
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -311,10 +239,6 @@
                 padding: 20px;
             }
             
-            .result-grid {
-                grid-template-columns: 1fr;
-            }
-            
             th, td {
                 padding: 10px;
             }
@@ -329,35 +253,14 @@
         </header>
 
         <div class="tabs">
-            <button class="tab active" onclick="switchTab('collection')">수거업체 안내</button>
-            <button class="tab" onclick="switchTab('sticker')">스티커 수수료</button>
+            <button class="tab active" onclick="showTab('collection')">수거업체 안내</button>
+            <button class="tab" onclick="showTab('sticker')">스티커 수수료</button>
         </div>
 
         <div id="collection-tab" class="content">
-            <div class="search-box">
-                <input type="text" id="searchInput" class="search-input" placeholder="주소를 입력하세요 (예: 킨텍스로, 하늘마을, 운정신도시, 금촌읍, 조리읍)" onkeypress="handleKeyPress(event)">
-                <button class="search-btn" onclick="handleSearch()">검색</button>
-                
-                <div id="searchResult" class="result hidden">
-                    <h3>검색 결과</h3>
-                    <div class="result-grid">
-                        <div class="result-item">
-                            <div class="result-label">담당 구역</div>
-                            <div class="result-value" id="resultArea"></div>
-                        </div>
-                        <div class="result-item">
-                            <div class="result-label">업체명</div>
-                            <div class="result-value" id="resultCompany"></div>
-                        </div>
-                        <div class="result-item">
-                            <div class="result-label">연락처</div>
-                            <a id="resultPhone" href="" class="phone-link"></a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <h3>담당 구역별 수거업체</h3>
+            <p style="color: #6b7280; margin-bottom: 20px;">아래 표에서 해당 지역을 찾아 연락처를 확인하세요.</p>
 
-            <h3>전체 수거업체 목록</h3>
             <table>
                 <thead>
                     <tr>
@@ -423,6 +326,12 @@
                         <div class="price-item"><span>소파</span><span class="price">8,000원</span></div>
                         <div class="price-item"><span>회전의자</span><span class="price">2,000원</span></div>
                     </div>
+                    <div class="price-category">
+                        <h4>테이블</h4>
+                        <div class="price-item"><span>책상</span><span class="price">4,000원</span></div>
+                        <div class="price-item"><span>식탁</span><span class="price">20,000원</span></div>
+                        <div class="price-item"><span>화장대</span><span class="price">3,000원</span></div>
+                    </div>
                 </div>
             </div>
 
@@ -453,18 +362,6 @@
                 </div>
             </div>
 
-            <div class="price-section">
-                <h3>테이블</h3>
-                <div class="price-grid">
-                    <div class="price-category">
-                        <h4>테이블류</h4>
-                        <div class="price-item"><span>책상</span><span class="price">4,000원</span></div>
-                        <div class="price-item"><span>식탁</span><span class="price">20,000원</span></div>
-                        <div class="price-item"><span>화장대</span><span class="price">3,000원</span></div>
-                    </div>
-                </div>
-            </div>
-
             <div class="contact-info">
                 <h3>대형폐기물 신청 문의</h3>
                 <p>파주시 자원순환과</p>
@@ -475,134 +372,20 @@
     </div>
 
     <script>
-        const wasteCompanies = [
-            { area: '운정1동, 운정4동', company: '(주)영인환경', phone: '031-934-0326', districts: ['운정1동', '운정4동'] },
-            { area: '운정3동, 운정6동', company: '(주)이룸', phone: '031-947-2778', districts: ['운정3동', '운정6동'] },
-            { area: '운정5동', company: '(주)진환경', phone: '031-942-6687', districts: ['운정5동'] },
-            { area: '운정2동, 교하동', company: '(주)대조은환경', phone: '031-944-7749', districts: ['운정2동', '교하동'] },
-            { area: '금촌1동', company: '(주)파주협경공사', phone: '031-953-4523', districts: ['금촌1동'] },
-            { area: '금촌2동, 금촌3동', company: '(주)하나환경', phone: '031-8071-1192', districts: ['금촌2동', '금촌3동'] },
-            { area: '조리읍', company: '(주)한빛환경', phone: '031-941-7611', districts: ['조리읍'] },
-            { area: '파주읍, 광탄면', company: '(주)늘푸른환경', phone: '031-957-8383', districts: ['파주읍', '광탄면'] },
-            { area: '문산읍(1권역), 창만면', company: '(주)엠에스환경', phone: '031-945-3655', districts: ['문산읍1권역', '창만면'] },
-            { area: '문산읍(2권역), 파평면', company: '(주)동금환경', phone: '031-941-5231', districts: ['문산읍2권역', '파평면'] },
-            { area: '법원읍, 적성면', company: '(주)푸른숲', phone: '031-959-2345', districts: ['법원읍', '적성면'] },
-            { area: '탄현면', company: '(주)세아환경', phone: '031-944-3582', districts: ['탄현면'] },
-            { area: '월롱면', company: '(주)클린환경', phone: '031-941-9981', districts: ['월롱면'] },
-            { area: '운정동 도로청소', company: '(주)두원종합관리', phone: '031-946-5793', districts: ['운정동도로청소'] },
-            { area: '자유로 및 운정외지역 도로청소', company: '도로청소(주)', phone: '031-949-1830', districts: ['자유로', '운정외지역도로청소'] }
-        ];
-
-        function switchTab(tab) {
-            const collectionTab = document.getElementById('collection-tab');
-            const stickerTab = document.getElementById('sticker-tab');
+        function showTab(tabName) {
+            // 모든 탭 콘텐츠 숨기기
+            document.getElementById('collection-tab').classList.add('hidden');
+            document.getElementById('sticker-tab').classList.add('hidden');
+            
+            // 모든 탭 버튼 비활성화
             const tabs = document.querySelectorAll('.tab');
-
-            tabs.forEach(t => t.classList.remove('active'));
+            tabs.forEach(tab => tab.classList.remove('active'));
             
-            if (tab === 'collection') {
-                collectionTab.classList.remove('hidden');
-                stickerTab.classList.add('hidden');
-                tabs[0].classList.add('active');
-            } else {
-                collectionTab.classList.add('hidden');
-                stickerTab.classList.remove('hidden');
-                tabs[1].classList.add('active');
-            }
-        }
-
-        // 파주시 지역별 상세 주소 매핑
-        const addressMapping = {
-            '운정1동': ['운정신도시', '운정1동', '야당동', '서패동', '원당리', '다율', '킨텍스', '킨텍스로', '하늘마을', '중앙로', '동패', '서패'],
-            '운정2동': ['운정2동', '교하동', '문발동', '신도시2단지', '운정역', '교하역', '문발역', '금릉역', '봄내마을', '한빛마을', '센트럴파크'],
-            '운정3동': ['운정3동', '동패동', '장월동', '야동동', '덕은동', '백석읍', '새롬마을', '한울마을', '청솔마을'],
-            '운정4동': ['운정4동', '동패동', '목동동', '와동동', '목동리', '청운마을', '푸르지오', '아이파크'],
-            '운정5동': ['운정5동', '조리읍', '갈현동', '가람마을', '한빛마을', '늘푸른마을'],
-            '운정6동': ['운정6동', '신촌동', '오도동', '금촌읍', '새로운마을', '파주여고'],
-            '교하동': ['교하동', '문발동', '봄내마을', '센트럴파크', '한빛마을', '교하역'],
-            '금촌1동': ['금촌1동', '금촌읍', '신촌동', '오도동', '유리산업단지', '세트렉아이'],
-            '금촌2동': ['금촌2동', '아동동', '직할동', '천현동', '고모리', '설마천'],
-            '금촌3동': ['금촌3동', '신평동', '경의선', '자유로', '신촌리'],
-            '조리읍': ['조리읍', '조리리', '오금리', '대원리', '봉서리', '신촌리', '장곡리'],
-            '파주읍': ['파주읍', '향양리', '신룡리', '용주리', '부곡리', '파평면'],
-            '광탄면': ['광탄면', '기산리', '용미리', '영태리', '분수리', '신산리'],
-            '문산읍': ['문산읍', '선유리', '이천리', '내포리', '문산리', '당동리', '장산리'],
-            '창만면': ['창만면', '신촌리', '부곡리', '대성리', '옥길리'],
-            '파평면': ['파평면', '율곡리', '마산리', '눌노리', '두포리'],
-            '법원읍': ['법원읍', '법원리', '금곡리', '상지석리', '하지석리', '직천리'],
-            '적성면': ['적성면', '설마리', '두포리', '객현리', '마지리', '가월리'],
-            '탄현면': ['탄현면', '법흥리', '성동리', '축현리', '금승리'],
-            '월롱면': ['월롱면', '위전리', '덕천리', '영북리', '성동리']
-        };
-
-        function handleSearch() {
-            const searchInput = document.getElementById('searchInput');
-            const searchAddress = searchInput.value.trim().toLowerCase();
+            // 선택된 탭 보이기
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
             
-            if (!searchAddress) {
-                alert('주소를 입력해주세요.');
-                return;
-            }
-
-            let foundCompany = null;
-
-            // 1. 정확한 동/읍/면 매칭
-            for (const [district, addresses] of Object.entries(addressMapping)) {
-                if (addresses.some(addr => 
-                    searchAddress.includes(addr.toLowerCase()) || 
-                    addr.toLowerCase().includes(searchAddress)
-                )) {
-                    foundCompany = wasteCompanies.find(company => 
-                        company.districts.includes(district) ||
-                        company.districts.includes(district.replace('동', '').replace('읍', '').replace('면', ''))
-                    );
-                    if (foundCompany) break;
-                }
-            }
-
-            // 2. 기존 검색 로직 (백업)
-            if (!foundCompany) {
-                foundCompany = wasteCompanies.find(company => 
-                    company.districts.some(district => 
-                        searchAddress.includes(district.replace('1권역', '').replace('2권역', '').toLowerCase()) ||
-                        district.toLowerCase().includes(searchAddress) ||
-                        (district.includes('도로청소') && searchAddress.includes('도로'))
-                    )
-                );
-            }
-
-            // 3. 더 넓은 검색 (파주, 운정, 금촌 등 큰 지역명)
-            if (!foundCompany) {
-                if (searchAddress.includes('운정') || searchAddress.includes('신도시')) {
-                    foundCompany = wasteCompanies[0]; // 운정1동 업체를 기본으로
-                } else if (searchAddress.includes('금촌')) {
-                    foundCompany = wasteCompanies.find(c => c.area.includes('금촌1동'));
-                } else if (searchAddress.includes('문산')) {
-                    foundCompany = wasteCompanies.find(c => c.area.includes('문산읍(1권역)'));
-                } else if (searchAddress.includes('조리')) {
-                    foundCompany = wasteCompanies.find(c => c.area.includes('조리읍'));
-                }
-            }
-
-            const searchResult = document.getElementById('searchResult');
-            
-            if (foundCompany) {
-                document.getElementById('resultArea').textContent = foundCompany.area;
-                document.getElementById('resultCompany').textContent = foundCompany.company;
-                const phoneLink = document.getElementById('resultPhone');
-                phoneLink.textContent = foundCompany.phone;
-                phoneLink.href = `tel:${foundCompany.phone}`;
-                searchResult.classList.remove('hidden');
-            } else {
-                searchResult.classList.add('hidden');
-                alert('해당 주소의 수거업체를 찾을 수 없습니다.\n예시: 운정1동, 킨텍스로, 금촌읍, 조리읍 등');
-            }
-        }
-
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                handleSearch();
-            }
+            // 클릭된 버튼 활성화
+            event.target.classList.add('active');
         }
     </script>
 </body>

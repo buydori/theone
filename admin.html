@@ -245,7 +245,10 @@
                 <div class="section-header">
                     <h2 class="section-title">💳 결제 내역</h2>
                     <button class="btn btn-primary" onclick="refreshPayments()">🔄 새로고침</button>
+                    <input type="file" id="depositUpload" accept=".csv, application/vnd.ms-excel, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" style="display:none" onchange="handleDepositUpload(event)">
+                    <button class="btn btn-success" onclick="document.getElementById('depositUpload').click()">입금내역 업로드</button>
                 </div>
+                <div id="depositPreviewContainer"></div>
                 <div class="data-table">
                     <thead>
                         <tr>
@@ -284,6 +287,7 @@
     </div>
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script>
         // Google API 설정
         const CLIENT_ID = '720685489156-p4hou9aacmcpb1b6pdckjj90isfl5ru5.apps.googleusercontent.com';
@@ -500,10 +504,10 @@
             } else {
                 customersData.forEach((row, idx) => {
                     html += `<tr>
-                        <td>${safeString(row[1])}</td>   // name
-                        <td>${safeString(row[2])}</td>   // phone_full
-                        <td>${safeString(row[6])}</td>   // address
-                        <td>${safeString(row[11])}</td>  // created_date
+                        <td>${safeString(row[1])}</td>
+                        <td>${safeString(row[2])}</td>
+                        <td>${safeString(row[6])}</td>
+                        <td>${safeString(row[11])}</td>
                         <td>
                             <button class='btn btn-sm btn-primary' onclick='openEditCustomerModal(${idx})'>수정</button>
                             <button class='btn btn-sm btn-danger' onclick='openDeleteModal(${idx})'>삭제</button>
@@ -543,6 +547,62 @@
             }
             html += '</tbody></table>';
             tab.innerHTML = html;
+        }
+
+        // 입금내역 엑셀(CSV) 업로드 및 파싱 (PapaParse 필요)
+        function handleDepositUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csv = e.target.result;
+                if (window.Papa) {
+                    Papa.parse(csv, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            renderDepositPreview(results.data);
+                        }
+                    });
+                } else {
+                    showAlert('CSV 파서(PapaParse)가 로드되지 않았습니다.', 'error');
+                }
+            };
+            reader.readAsText(file);
+        }
+        // 입금내역 미리보기 테이블 렌더링
+        function renderDepositPreview(data) {
+            let html = '<div class="card"><h3>입금내역 미리보기</h3>';
+            if (!data || data.length === 0) {
+                html += '<p>데이터가 없습니다.</p></div>';
+                document.getElementById('depositPreviewContainer').innerHTML = html;
+                return;
+            }
+            html += '<table class="data-table"><thead><tr>';
+            Object.keys(data[0]).forEach(col => { html += `<th>${col}</th>`; });
+            html += '<th>자동매칭</th></tr></thead><tbody>';
+            data.forEach(row => {
+                html += '<tr>';
+                Object.values(row).forEach(val => { html += `<td>${safeString(val)}</td>`; });
+                // 자동매칭 로직: 내용에 고객 이름 또는 호수 포함 && 금액 일치
+                let match = '-';
+                if (row['구분'] && row['구분'].includes('입금')) {
+                    const amount = String(row['거래금액']).replace(/[^\d]/g, '');
+                    customersData.forEach(cust => {
+                        const name = safeString(cust[1]);
+                        const unit = safeString(cust[5]);
+                        const fee = String(cust[8]).replace(/[^\d]/g, '');
+                        const content = safeString(row['내용']);
+                        if ((content.includes(name) || content.includes(unit)) && amount === fee) {
+                            match = `입금완료 (${name} / ${unit})`;
+                        }
+                    });
+                }
+                html += `<td>${match}</td>`;
+                html += '</tr>';
+            });
+            html += '</tbody></table></div>';
+            document.getElementById('depositPreviewContainer').innerHTML = html;
         }
 
         // loadAllData에서 각 데이터 로드
@@ -613,10 +673,10 @@
         function openEditCustomerModal(idx) {
             const row = customersData[idx];
             document.getElementById('customerModalTitle').textContent = '고객 수정';
-            document.getElementById('customer_name').value = safeString(row[1]); // name
-            document.getElementById('phone_full').value = safeString(row[2]); // phone_full
-            document.getElementById('address').value = safeString(row[6]); // address
-            document.getElementById('created_date').value = safeString(row[11]); // created_date
+            document.getElementById('customer_name').value = safeString(row[1]);
+            document.getElementById('phone_full').value = safeString(row[2]);
+            document.getElementById('address').value = safeString(row[6]);
+            document.getElementById('created_date').value = safeString(row[11]);
             document.getElementById('customerRowIndex').value = idx;
             document.getElementById('customerModal').classList.add('show');
         }
@@ -702,7 +762,7 @@
                 if (idx === '') {
                     await gapi.client.sheets.spreadsheets.values.append({
                         spreadsheetId: GOOGLE_SHEET_ID,
-                        range: '고객정보!A2',
+                        range: '고객정보', // 반드시 시트명만!
                         valueInputOption: 'USER_ENTERED',
                         insertDataOption: 'INSERT_ROWS',
                         resource: { values }

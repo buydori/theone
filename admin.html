@@ -30,6 +30,7 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; padding-bottom: 15px; border-bottom: 2px solid #f0f0f0; }
         .section-title { font-size: 20px; font-weight: 700; color: #333; }
+        #customerButtons, #paymentButtons { display: none; gap: 10px; }
         .btn { padding: 12px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; display: inline-flex; align-items: center; gap: 8px; }
         .btn-primary { background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; }
         .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(79, 172, 254, 0.4); }
@@ -266,6 +267,7 @@
     <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
     <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
         // Google API 설정
         const CLIENT_ID = '720685489156-p4hou9aacmcpb1b6pdckjj90isfl5ru5.apps.googleusercontent.com';
@@ -338,11 +340,22 @@
 
         // 로그인 상태에 따른 UI 표시/숨김 처리
         function setSigninStatus(signedIn) {
+            console.log('setSigninStatus 호출됨, signedIn:', signedIn);
             isAuthorized = signedIn;
             
             // 인증 섹션 토글
-            document.getElementById('authSection').style.display = signedIn ? 'none' : 'block';
-            document.getElementById('signoutButton').style.display = signedIn ? 'inline-block' : 'none';
+            const authSection = document.getElementById('authSection');
+            const signoutButton = document.getElementById('signoutButton');
+            
+            if (authSection) {
+                authSection.style.display = signedIn ? 'none' : 'block';
+                console.log('authSection display:', authSection.style.display);
+            }
+            
+            if (signoutButton) {
+                signoutButton.style.display = signedIn ? 'inline-block' : 'none';
+                console.log('signoutButton display:', signoutButton.style.display);
+            }
             
             // 연결 상태 업데이트
             updateConnectionStatus(signedIn ? '연결됨' : '로그인 필요', signedIn);
@@ -353,15 +366,19 @@
             
             if (customerButtons) {
                 customerButtons.style.display = signedIn ? 'flex' : 'none';
+                console.log('customerButtons display:', customerButtons.style.display);
             }
             if (paymentButtons) {
                 paymentButtons.style.display = signedIn ? 'flex' : 'none';
+                console.log('paymentButtons display:', paymentButtons.style.display);
             }
             
             if (signedIn) {
+                console.log('로그인됨 - 데이터 로드 시작');
                 // 데이터 로드
                 loadAllData();
             } else {
+                console.log('로그아웃됨 - 데이터 초기화');
                 // 데이터 초기화 및 테이블 재렌더링
                 customersData = [];
                 billsData = [];
@@ -441,8 +458,9 @@
                         showAlert('로그인 실패: ' + tokenResponse.error, 'error');
                         updateConnectionStatus('로그인 실패', false);
                     } else {
-                        console.log('OAuth 성공');
+                        console.log('OAuth 성공, 로그인 상태 설정 중...');
                         setSigninStatus(true);
+                        console.log('로그인 상태 설정 완료');
                     }
                 },
             });
@@ -598,61 +616,166 @@
             const file = event.target.files[0];
             if (!file) return;
             
+            const fileName = file.name.toLowerCase();
             const reader = new FileReader();
+            
             reader.onload = function(e) {
-                const csv = e.target.result;
-                if (window.Papa) {
-                    Papa.parse(csv, {
-                        header: true,
-                        skipEmptyLines: true,
-                        complete: function(results) {
-                            renderDepositPreview(results.data);
+                try {
+                    let data = [];
+                    
+                    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                        // 엑셀 파일 처리
+                        const arrayBuffer = e.target.result;
+                        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                        
+                        // 첫 번째 행을 헤더로, 나머지를 데이터로 변환
+                        if (data.length > 0) {
+                            const headers = data[0];
+                            const rows = data.slice(1);
+                            const jsonData = rows.map(row => {
+                                const obj = {};
+                                headers.forEach((header, index) => {
+                                    obj[header] = row[index] || '';
+                                });
+                                return obj;
+                            }).filter(row => Object.values(row).some(val => val !== '')); // 빈 행 제거
+                            
+                            renderDepositPreview(jsonData);
+                        } else {
+                            showAlert('엑셀 파일에 데이터가 없습니다.', 'warning');
                         }
-                    });
-                } else {
-                    showAlert('CSV 파서(PapaParse)가 로드되지 않았습니다.', 'error');
+                    } else if (fileName.endsWith('.csv')) {
+                        // CSV 파일 처리
+                        const csv = e.target.result;
+                        if (window.Papa) {
+                            Papa.parse(csv, {
+                                header: true,
+                                skipEmptyLines: true,
+                                encoding: 'UTF-8',
+                                complete: function(results) {
+                                    renderDepositPreview(results.data);
+                                },
+                                error: function(error) {
+                                    console.error('CSV 파싱 오류:', error);
+                                    showAlert('CSV 파일 파싱 중 오류가 발생했습니다.', 'error');
+                                }
+                            });
+                        } else {
+                            showAlert('CSV 파서(PapaParse)가 로드되지 않았습니다.', 'error');
+                        }
+                    } else {
+                        showAlert('지원하지 않는 파일 형식입니다. CSV 또는 Excel 파일을 업로드해주세요.', 'error');
+                    }
+                } catch (error) {
+                    console.error('파일 처리 오류:', error);
+                    showAlert('파일 처리 중 오류가 발생했습니다: ' + error.message, 'error');
                 }
             };
-            reader.readAsText(file);
+            
+            // 엑셀 파일은 ArrayBuffer로, CSV는 텍스트로 읽기
+            if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+                reader.readAsArrayBuffer(file);
+            } else {
+                reader.readAsText(file, 'UTF-8');
+            }
         }
 
         // 입금내역 미리보기 테이블 렌더링
         function renderDepositPreview(data) {
+            console.log('입금내역 데이터:', data);
+            
             let html = '<div class="card"><h3>입금내역 미리보기</h3>';
             if (!data || data.length === 0) {
                 html += '<p>데이터가 없습니다.</p></div>';
                 document.getElementById('depositPreviewContainer').innerHTML = html;
                 return;
             }
+            
+            // 데이터의 첫 번째 객체에서 컬럼명 추출
+            const columns = Object.keys(data[0]);
+            
+            html += '<div style="margin-bottom: 15px; font-size: 14px; color: #666;">';
+            html += `총 ${data.length}건의 거래내역이 발견되었습니다.`;
+            html += '</div>';
+            
             html += '<table class="data-table"><thead><tr>';
-            Object.keys(data[0]).forEach(col => { html += `<th>${col}</th>`; });
+            columns.forEach(col => { 
+                html += `<th>${col}</th>`; 
+            });
             html += '<th>자동매칭</th></tr></thead><tbody>';
-            data.forEach(row => {
+            
+            data.forEach((row, index) => {
+                // 처음 10개만 미리보기로 표시
+                if (index >= 10) return;
+                
                 html += '<tr>';
-                Object.values(row).forEach(val => { html += `<td>${safeString(val)}</td>`; });
-                // 자동매칭 로직: 내용에 고객 이름 또는 호수 포함 && 금액 일치
+                columns.forEach(col => { 
+                    const value = safeString(row[col]);
+                    html += `<td>${value}</td>`; 
+                });
+                
+                // 자동매칭 로직 개선
                 let match = '-';
-                if (row['구분'] && row['구분'].includes('입금')) {
-                    const amount = String(row['거래금액']).replace(/[^\d]/g, '');
+                const content = safeString(row['내용'] || row['적요'] || row['거래내용'] || '');
+                const amount = String(row['거래금액'] || row['입금액'] || row['금액'] || '').replace(/[^\d]/g, '');
+                const transactionType = safeString(row['구분'] || row['입출금구분'] || '');
+                
+                if (transactionType.includes('입금') || content.includes('입금')) {
                     customersData.forEach(cust => {
                         const name = safeString(cust[1]);
                         const unit = safeString(cust[5]);
-                        const fee = String(cust[8]).replace(/[^\d]/g, '');
-                        const content = safeString(row['내용']);
+                        const fee = String(cust[8] || '').replace(/[^\d]/g, '');
+                        
                         if ((content.includes(name) || content.includes(unit)) && amount === fee) {
-                            match = `입금완료 (${name} / ${unit})`;
+                            match = `✅ 매칭됨 (${name} / ${unit})`;
                         }
                     });
                 }
-                html += `<td>${match}</td>`;
+                
+                html += `<td style="font-weight: 600; color: ${match.includes('✅') ? '#48bb78' : '#666'}">${match}</td>`;
                 html += '</tr>';
             });
-            html += '</tbody></table></div>';
+            
+            if (data.length > 10) {
+                html += `<tr><td colspan="${columns.length + 1}" style="text-align: center; font-style: italic; color: #666;">... 외 ${data.length - 10}건 더 있음</td></tr>`;
+            }
+            
+            html += '</tbody></table>';
+            
+            // 매칭 통계
+            let matchedCount = 0;
+            data.forEach(row => {
+                const content = safeString(row['내용'] || row['적요'] || row['거래내용'] || '');
+                const amount = String(row['거래금액'] || row['입금액'] || row['금액'] || '').replace(/[^\d]/g, '');
+                const transactionType = safeString(row['구분'] || row['입출금구분'] || '');
+                
+                if (transactionType.includes('입금') || content.includes('입금')) {
+                    customersData.forEach(cust => {
+                        const name = safeString(cust[1]);
+                        const unit = safeString(cust[5]);
+                        const fee = String(cust[8] || '').replace(/[^\d]/g, '');
+                        
+                        if ((content.includes(name) || content.includes(unit)) && amount === fee) {
+                            matchedCount++;
+                        }
+                    });
+                }
+            });
+            
+            html += '<div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 14px;">';
+            html += `<strong>매칭 결과:</strong> 전체 ${data.length}건 중 ${matchedCount}건 자동 매칭됨`;
+            html += '</div>';
+            
+            html += '</div>';
             document.getElementById('depositPreviewContainer').innerHTML = html;
         }
 
         // loadAllData에서 각 데이터 로드
         async function loadAllData() {
+            console.log('loadAllData 시작');
             try {
                 showAlert('데이터를 불러오는 중...', 'info');
                 await Promise.all([
@@ -660,8 +783,10 @@
                     loadBills(),
                     loadPayments()
                 ]);
+                console.log('모든 데이터 로드 완료');
                 showAlert('데이터 로드 완료', 'success');
             } catch (e) {
+                console.error('데이터 로드 오류:', e);
                 showAlert('데이터 로드 중 오류: ' + e.message, 'error');
             }
         }

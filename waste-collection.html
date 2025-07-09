@@ -335,7 +335,7 @@
 
         <div id="collection-tab" class="content">
             <div class="search-box">
-                <input type="text" id="searchInput" class="search-input" placeholder="지역을 입력하세요 (예: 운정1동, 조리읍)" onkeypress="handleKeyPress(event)">
+                <input type="text" id="searchInput" class="search-input" placeholder="주소를 입력하세요 (예: 킨텍스로, 하늘마을, 운정신도시, 금촌읍, 조리읍)" onkeypress="handleKeyPress(event)">
                 <button class="search-btn" onclick="handleSearch()">검색</button>
                 
                 <div id="searchResult" class="result hidden">
@@ -511,22 +511,78 @@
             }
         }
 
+        // 파주시 지역별 상세 주소 매핑
+        const addressMapping = {
+            '운정1동': ['운정신도시', '운정1동', '야당동', '서패동', '원당리', '다율', '킨텍스', '킨텍스로', '하늘마을', '중앙로', '동패', '서패'],
+            '운정2동': ['운정2동', '교하동', '문발동', '신도시2단지', '운정역', '교하역', '문발역', '금릉역', '봄내마을', '한빛마을', '센트럴파크'],
+            '운정3동': ['운정3동', '동패동', '장월동', '야동동', '덕은동', '백석읍', '새롬마을', '한울마을', '청솔마을'],
+            '운정4동': ['운정4동', '동패동', '목동동', '와동동', '목동리', '청운마을', '푸르지오', '아이파크'],
+            '운정5동': ['운정5동', '조리읍', '갈현동', '가람마을', '한빛마을', '늘푸른마을'],
+            '운정6동': ['운정6동', '신촌동', '오도동', '금촌읍', '새로운마을', '파주여고'],
+            '교하동': ['교하동', '문발동', '봄내마을', '센트럴파크', '한빛마을', '교하역'],
+            '금촌1동': ['금촌1동', '금촌읍', '신촌동', '오도동', '유리산업단지', '세트렉아이'],
+            '금촌2동': ['금촌2동', '아동동', '직할동', '천현동', '고모리', '설마천'],
+            '금촌3동': ['금촌3동', '신평동', '경의선', '자유로', '신촌리'],
+            '조리읍': ['조리읍', '조리리', '오금리', '대원리', '봉서리', '신촌리', '장곡리'],
+            '파주읍': ['파주읍', '향양리', '신룡리', '용주리', '부곡리', '파평면'],
+            '광탄면': ['광탄면', '기산리', '용미리', '영태리', '분수리', '신산리'],
+            '문산읍': ['문산읍', '선유리', '이천리', '내포리', '문산리', '당동리', '장산리'],
+            '창만면': ['창만면', '신촌리', '부곡리', '대성리', '옥길리'],
+            '파평면': ['파평면', '율곡리', '마산리', '눌노리', '두포리'],
+            '법원읍': ['법원읍', '법원리', '금곡리', '상지석리', '하지석리', '직천리'],
+            '적성면': ['적성면', '설마리', '두포리', '객현리', '마지리', '가월리'],
+            '탄현면': ['탄현면', '법흥리', '성동리', '축현리', '금승리'],
+            '월롱면': ['월롱면', '위전리', '덕천리', '영북리', '성동리']
+        };
+
         function handleSearch() {
             const searchInput = document.getElementById('searchInput');
-            const searchAddress = searchInput.value.trim();
+            const searchAddress = searchInput.value.trim().toLowerCase();
             
             if (!searchAddress) {
                 alert('주소를 입력해주세요.');
                 return;
             }
 
-            const foundCompany = wasteCompanies.find(company => 
-                company.districts.some(district => 
-                    searchAddress.includes(district.replace('1권역', '').replace('2권역', '')) ||
-                    searchAddress.includes(district) ||
-                    (district.includes('도로청소') && searchAddress.includes('도로'))
-                )
-            );
+            let foundCompany = null;
+
+            // 1. 정확한 동/읍/면 매칭
+            for (const [district, addresses] of Object.entries(addressMapping)) {
+                if (addresses.some(addr => 
+                    searchAddress.includes(addr.toLowerCase()) || 
+                    addr.toLowerCase().includes(searchAddress)
+                )) {
+                    foundCompany = wasteCompanies.find(company => 
+                        company.districts.includes(district) ||
+                        company.districts.includes(district.replace('동', '').replace('읍', '').replace('면', ''))
+                    );
+                    if (foundCompany) break;
+                }
+            }
+
+            // 2. 기존 검색 로직 (백업)
+            if (!foundCompany) {
+                foundCompany = wasteCompanies.find(company => 
+                    company.districts.some(district => 
+                        searchAddress.includes(district.replace('1권역', '').replace('2권역', '').toLowerCase()) ||
+                        district.toLowerCase().includes(searchAddress) ||
+                        (district.includes('도로청소') && searchAddress.includes('도로'))
+                    )
+                );
+            }
+
+            // 3. 더 넓은 검색 (파주, 운정, 금촌 등 큰 지역명)
+            if (!foundCompany) {
+                if (searchAddress.includes('운정') || searchAddress.includes('신도시')) {
+                    foundCompany = wasteCompanies[0]; // 운정1동 업체를 기본으로
+                } else if (searchAddress.includes('금촌')) {
+                    foundCompany = wasteCompanies.find(c => c.area.includes('금촌1동'));
+                } else if (searchAddress.includes('문산')) {
+                    foundCompany = wasteCompanies.find(c => c.area.includes('문산읍(1권역)'));
+                } else if (searchAddress.includes('조리')) {
+                    foundCompany = wasteCompanies.find(c => c.area.includes('조리읍'));
+                }
+            }
 
             const searchResult = document.getElementById('searchResult');
             
@@ -539,7 +595,7 @@
                 searchResult.classList.remove('hidden');
             } else {
                 searchResult.classList.add('hidden');
-                alert('해당 주소의 수거업체를 찾을 수 없습니다.');
+                alert('해당 주소의 수거업체를 찾을 수 없습니다.\n예시: 운정1동, 킨텍스로, 금촌읍, 조리읍 등');
             }
         }
 

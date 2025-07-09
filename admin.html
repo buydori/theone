@@ -269,34 +269,6 @@
     <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script>
-        // Google API 콜백 함수들을 먼저 정의
-        function gapiLoaded() {
-            console.log('GAPI 스크립트 로드됨');
-            gapi.load('client', initializeGapiClient);
-        }
-
-        function gisLoaded() {
-            console.log('GIS 스크립트 로드됨');
-            gisReady = true;
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                callback: (tokenResponse) => {
-                    console.log('OAuth 응답:', tokenResponse);
-                    if (tokenResponse.error !== undefined) {
-                        console.error('OAuth 오류:', tokenResponse.error);
-                        showAlert('로그인 실패: ' + tokenResponse.error, 'error');
-                        updateConnectionStatus('로그인 실패', false);
-                    } else {
-                        console.log('OAuth 성공, 로그인 상태 설정 중...');
-                        setSigninStatus(true);
-                        console.log('로그인 상태 설정 완료');
-                    }
-                },
-            });
-            checkIfReady();
-        }
-
         // Google API 설정
         const CLIENT_ID = '720685489156-p4hou9aacmcpb1b6pdckjj90isfl5ru5.apps.googleusercontent.com';
         const API_KEY = 'AIzaSyD0tH5ebOAlUMnGrrLKdLAM3EzIuDAfPcA';
@@ -449,8 +421,11 @@
         }
         window.handleSignoutClick = handleSignoutClick;
 
-        // GAPI 로드 완료 콜백 (이미 위에서 정의됨)
-        // function gapiLoaded() - 위에서 이미 정의
+        // GAPI 로드 완료 콜백
+        function gapiLoaded() {
+            console.log('GAPI 스크립트 로드됨');
+            gapi.load('client', initializeGapiClient);
+        }
 
         // GAPI 클라이언트 초기화
         function initializeGapiClient() {
@@ -469,8 +444,28 @@
             });
         }
 
-        // GIS 로드 완료 콜백 (이미 위에서 정의됨)
-        // function gisLoaded() - 위에서 이미 정의
+        // GIS 로드 완료 콜백
+        function gisLoaded() {
+            console.log('GIS 스크립트 로드됨');
+            gisReady = true;
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: (tokenResponse) => {
+                    console.log('OAuth 응답:', tokenResponse);
+                    if (tokenResponse.error !== undefined) {
+                        console.error('OAuth 오류:', tokenResponse.error);
+                        showAlert('로그인 실패: ' + tokenResponse.error, 'error');
+                        updateConnectionStatus('로그인 실패', false);
+                    } else {
+                        console.log('OAuth 성공, 로그인 상태 설정 중...');
+                        setSigninStatus(true);
+                        console.log('로그인 상태 설정 완료');
+                    }
+                },
+            });
+            checkIfReady();
+        }
 
         // 구글 시트 데이터 로드 함수들 구현
         async function loadCustomers() {
@@ -1115,9 +1110,7 @@
             };
         });
 
-        // 전역 함수 등록 (Google API 콜백 함수들 먼저 등록)
-        window.gapiLoaded = gapiLoaded;
-        window.gisLoaded = gisLoaded;
+        // 전역 함수 등록
         window.showTab = showTab;
         window.handleAuthClick = handleAuthClick;
         window.handleSignoutClick = handleSignoutClick;
@@ -1135,6 +1128,8 @@
         window.handleDepositUpload = handleDepositUpload;
         window.processMatchedDeposits = processMatchedDeposits;
         window.manualMatch = manualMatch;
+        window.gapiLoaded = gapiLoaded;
+        window.gisLoaded = gisLoaded;
 
         // 페이지 로드 시 초기화
         document.addEventListener('DOMContentLoaded', function() {

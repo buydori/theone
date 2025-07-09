@@ -694,83 +694,196 @@
                 return;
             }
             
-            // 데이터의 첫 번째 객체에서 컬럼명 추출
-            const columns = Object.keys(data[0]);
-            
-            html += '<div style="margin-bottom: 15px; font-size: 14px; color: #666;">';
-            html += `총 ${data.length}건의 거래내역이 발견되었습니다.`;
-            html += '</div>';
-            
-            html += '<table class="data-table"><thead><tr>';
-            columns.forEach(col => { 
-                html += `<th>${col}</th>`; 
-            });
-            html += '<th>자동매칭</th></tr></thead><tbody>';
+            // 매칭된 데이터 분석
+            const matchedDeposits = [];
+            const unmatchedDeposits = [];
             
             data.forEach((row, index) => {
-                // 처음 10개만 미리보기로 표시
-                if (index >= 10) return;
+                const content = safeString(row['내용'] || row['적요'] || row['거래내용'] || '');
+                const amount = String(row['거래금액'] || row['입금액'] || row['금액'] || '').replace(/[^\d]/g, '');
+                const transactionType = safeString(row['구분'] || row['입출금구분'] || '');
+                const date = safeString(row['거래일시'] || row['거래일'] || row['날짜'] || '');
                 
-                html += '<tr>';
-                columns.forEach(col => { 
-                    const value = safeString(row[col]);
-                    html += `<td>${value}</td>`; 
+                let matchInfo = null;
+                
+                if (transactionType.includes('입금') || content.includes('입금')) {
+                    customersData.forEach(cust => {
+                        const name = safeString(cust[1]);
+                        const unit = safeString(cust[5]);
+                        const fee = String(cust[8] || '').replace(/[^\d]/g, '');
+                        
+                        if ((content.includes(name) || content.includes(unit)) && amount === fee) {
+                            matchInfo = {
+                                customerName: name,
+                                unit: unit,
+                                amount: amount,
+                                fee: fee,
+                                customerId: cust[0]
+                            };
+                        }
+                    });
+                    
+                    if (matchInfo) {
+                        matchedDeposits.push({
+                            ...row,
+                            index,
+                            matchInfo,
+                            date,
+                            amount,
+                            content
+                        });
+                    } else {
+                        unmatchedDeposits.push({
+                            ...row,
+                            index,
+                            date,
+                            amount,
+                            content
+                        });
+                    }
+                }
+            });
+            
+            html += '<div style="margin-bottom: 20px;">';
+            html += `<div style="display: flex; gap: 15px; margin-bottom: 15px;">`;
+            html += `<div style="padding: 10px; background: #d4edda; border-radius: 8px; flex: 1;">`;
+            html += `<strong style="color: #155724;">✅ 자동 매칭됨: ${matchedDeposits.length}건</strong>`;
+            html += `</div>`;
+            html += `<div style="padding: 10px; background: #fff3cd; border-radius: 8px; flex: 1;">`;
+            html += `<strong style="color: #856404;">⚠️ 매칭 안됨: ${unmatchedDeposits.length}건</strong>`;
+            html += `</div>`;
+            html += `</div>`;
+            
+            if (matchedDeposits.length > 0) {
+                html += '<button class="btn btn-success" onclick="processMatchedDeposits()" style="margin-right: 10px;">매칭된 입금 처리하기</button>';
+            }
+            html += '</div>';
+            
+            // 매칭된 입금 내역
+            if (matchedDeposits.length > 0) {
+                html += '<h4 style="color: #155724; margin-bottom: 15px;">✅ 자동 매칭된 입금 내역</h4>';
+                html += '<table class="data-table" style="margin-bottom: 25px;"><thead><tr>';
+                html += '<th>거래일시</th><th>입금액</th><th>고객명</th><th>호수</th><th>거래내용</th><th>상태</th>';
+                html += '</tr></thead><tbody>';
+                
+                matchedDeposits.forEach(deposit => {
+                    html += '<tr style="background: #d4edda;">';
+                    html += `<td>${deposit.date}</td>`;
+                    html += `<td>${parseInt(deposit.amount).toLocaleString()}원</td>`;
+                    html += `<td><strong>${deposit.matchInfo.customerName}</strong></td>`;
+                    html += `<td>${deposit.matchInfo.unit}</td>`;
+                    html += `<td>${deposit.content}</td>`;
+                    html += `<td><span style="color: #155724; font-weight: 600;">매칭됨</span></td>`;
+                    html += '</tr>';
                 });
                 
-                // 자동매칭 로직 개선
-                let match = '-';
-                const content = safeString(row['내용'] || row['적요'] || row['거래내용'] || '');
-                const amount = String(row['거래금액'] || row['입금액'] || row['금액'] || '').replace(/[^\d]/g, '');
-                const transactionType = safeString(row['구분'] || row['입출금구분'] || '');
-                
-                if (transactionType.includes('입금') || content.includes('입금')) {
-                    customersData.forEach(cust => {
-                        const name = safeString(cust[1]);
-                        const unit = safeString(cust[5]);
-                        const fee = String(cust[8] || '').replace(/[^\d]/g, '');
-                        
-                        if ((content.includes(name) || content.includes(unit)) && amount === fee) {
-                            match = `✅ 매칭됨 (${name} / ${unit})`;
-                        }
-                    });
-                }
-                
-                html += `<td style="font-weight: 600; color: ${match.includes('✅') ? '#48bb78' : '#666'}">${match}</td>`;
-                html += '</tr>';
-            });
-            
-            if (data.length > 10) {
-                html += `<tr><td colspan="${columns.length + 1}" style="text-align: center; font-style: italic; color: #666;">... 외 ${data.length - 10}건 더 있음</td></tr>`;
+                html += '</tbody></table>';
             }
             
-            html += '</tbody></table>';
-            
-            // 매칭 통계
-            let matchedCount = 0;
-            data.forEach(row => {
-                const content = safeString(row['내용'] || row['적요'] || row['거래내용'] || '');
-                const amount = String(row['거래금액'] || row['입금액'] || row['금액'] || '').replace(/[^\d]/g, '');
-                const transactionType = safeString(row['구분'] || row['입출금구분'] || '');
+            // 매칭되지 않은 입금 내역
+            if (unmatchedDeposits.length > 0) {
+                html += '<h4 style="color: #856404; margin-bottom: 15px;">⚠️ 매칭되지 않은 입금 내역</h4>';
+                html += '<table class="data-table"><thead><tr>';
+                html += '<th>거래일시</th><th>입금액</th><th>거래내용</th><th>수동매칭</th>';
+                html += '</tr></thead><tbody>';
                 
-                if (transactionType.includes('입금') || content.includes('입금')) {
+                unmatchedDeposits.forEach((deposit, idx) => {
+                    html += '<tr style="background: #fff3cd;">';
+                    html += `<td>${deposit.date}</td>`;
+                    html += `<td>${parseInt(deposit.amount).toLocaleString()}원</td>`;
+                    html += `<td>${deposit.content}</td>`;
+                    html += `<td>`;
+                    html += `<select onchange="manualMatch(${idx}, this.value)" style="padding: 5px; border-radius: 4px;">`;
+                    html += `<option value="">고객 선택</option>`;
                     customersData.forEach(cust => {
-                        const name = safeString(cust[1]);
-                        const unit = safeString(cust[5]);
-                        const fee = String(cust[8] || '').replace(/[^\d]/g, '');
-                        
-                        if ((content.includes(name) || content.includes(unit)) && amount === fee) {
-                            matchedCount++;
-                        }
+                        html += `<option value="${cust[0]}">${safeString(cust[1])} (${safeString(cust[5])})</option>`;
                     });
-                }
-            });
+                    html += `</select>`;
+                    html += `</td>`;
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+            }
             
-            html += '<div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; font-size: 14px;">';
-            html += `<strong>매칭 결과:</strong> 전체 ${data.length}건 중 ${matchedCount}건 자동 매칭됨`;
             html += '</div>';
             
-            html += '</div>';
+            // 전역 변수에 저장 (다른 함수에서 사용하기 위해)
+            window.currentMatchedDeposits = matchedDeposits;
+            window.currentUnmatchedDeposits = unmatchedDeposits;
+            
             document.getElementById('depositPreviewContainer').innerHTML = html;
+        }
+        
+        // 매칭된 입금 처리하기
+        async function processMatchedDeposits() {
+            if (!window.currentMatchedDeposits || window.currentMatchedDeposits.length === 0) {
+                showAlert('처리할 매칭된 입금이 없습니다.', 'warning');
+                return;
+            }
+            
+            try {
+                showAlert('입금 내역을 처리하는 중...', 'info');
+                
+                // 결제내역 시트에 데이터 추가
+                const values = window.currentMatchedDeposits.map(deposit => [
+                    deposit.matchInfo.customerName,
+                    deposit.date,
+                    parseInt(deposit.amount).toLocaleString() + '원',
+                    '계좌이체',
+                    '자동매칭',
+                    deposit.matchInfo.customerId,
+                    new Date().toISOString().slice(0, 10)
+                ]);
+                
+                await gapi.client.sheets.spreadsheets.values.append({
+                    spreadsheetId: GOOGLE_SHEET_ID,
+                    range: '결제내역',
+                    valueInputOption: 'USER_ENTERED',
+                    insertDataOption: 'INSERT_ROWS',
+                    resource: { values }
+                });
+                
+                showAlert(`${window.currentMatchedDeposits.length}건의 입금이 성공적으로 처리되었습니다.`, 'success');
+                
+                // 결제 내역 새로고침
+                await loadPayments();
+                
+                // 미리보기 초기화
+                document.getElementById('depositPreviewContainer').innerHTML = '';
+                document.getElementById('depositUpload').value = '';
+                
+            } catch (e) {
+                console.error('입금 처리 오류:', e);
+                showAlert('입금 처리 중 오류가 발생했습니다: ' + e.message, 'error');
+            }
+        }
+        
+        // 수동 매칭
+        function manualMatch(unmatchedIndex, customerId) {
+            if (!customerId) return;
+            
+            const deposit = window.currentUnmatchedDeposits[unmatchedIndex];
+            const customer = customersData.find(cust => cust[0] === customerId);
+            
+            if (customer && deposit) {
+                // 매칭된 목록으로 이동
+                const matchInfo = {
+                    customerName: safeString(customer[1]),
+                    unit: safeString(customer[5]),
+                    customerId: customer[0]
+                };
+                
+                deposit.matchInfo = matchInfo;
+                window.currentMatchedDeposits.push(deposit);
+                window.currentUnmatchedDeposits.splice(unmatchedIndex, 1);
+                
+                // 화면 다시 렌더링
+                const allData = [...window.currentMatchedDeposits, ...window.currentUnmatchedDeposits];
+                renderDepositPreview(allData);
+                
+                showAlert(`${matchInfo.customerName}님과 수동 매칭되었습니다.`, 'success');
+            }
         }
 
         // loadAllData에서 각 데이터 로드
@@ -1013,6 +1126,8 @@
         window.closeDeleteModal = closeDeleteModal;
         window.submitCustomerForm = submitCustomerForm;
         window.handleDepositUpload = handleDepositUpload;
+        window.processMatchedDeposits = processMatchedDeposits;
+        window.manualMatch = manualMatch;
         window.gapiLoaded = gapiLoaded;
         window.gisLoaded = gisLoaded;
 

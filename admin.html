@@ -264,878 +264,900 @@
             </div>
         </div>
     </div>
-    <script async defer src="https://apis.google.com/js/api.js" onload="initGapi()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="initGis()"></script>
-    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <script>
-        // 전역 변수로 콜백 함수 먼저 정의
-        window.initGapi = function() {
-            console.log('GAPI 스크립트 로드됨');
-            gapi.load('client', initializeGapiClient);
-        };
 
-        window.initGis = function() {
-            console.log('GIS 스크립트 로드됨');
-            gisReady = true;
-            tokenClient = google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                callback: (tokenResponse) => {
-                    console.log('OAuth 응답:', tokenResponse);
-                    if (tokenResponse.error !== undefined) {
-                        console.error('OAuth 오류:', tokenResponse.error);
-                        showAlert('로그인 실패: ' + tokenResponse.error, 'error');
-                        updateConnectionStatus('로그인 실패', false);
-                    } else {
-                        console.log('OAuth 성공, 로그인 상태 설정 중...');
-                        setSigninStatus(true);
-                        console.log('로그인 상태 설정 완료');
-                    }
-                },
+<script>
+// ========== 핵심 변수 및 설정 ==========
+const CLIENT_ID = '720685489156-p4hou9aacmcpb1b6pdckjj90isfl5ru5.apps.googleusercontent.com';
+const API_KEY = 'AIzaSyD0tH5ebOAlUMnGrrLKdLAM3EzIuDAfPcA';
+const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const GOOGLE_SHEET_ID = '1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg';
+
+let tokenClient;
+let isAuthorized = false;
+let gapiReady = false;
+let gisReady = false;
+let customersData = [], billsData = [], paymentsData = [];
+
+// ========== Google API 콜백 함수들 (전역 스코프에서 즉시 정의) ==========
+function gapiLoaded() {
+    console.log('✅ GAPI 스크립트 로드됨');
+    gapi.load('client', initializeGapiClient);
+}
+
+function gisLoaded() {
+    console.log('✅ GIS 스크립트 로드됨');
+    gisReady = true;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: SCOPES,
+        callback: (resp) => {
+            if (resp.error !== undefined) {
+                console.error('❌ OAuth 오류:', resp.error);
+                showAlert('로그인 실패: ' + resp.error, 'error');
+                updateConnectionStatus('로그인 실패', false);
+            } else {
+                console.log('✅ OAuth 성공');
+                setSigninStatus(true);
+            }
+        },
+    });
+    checkIfReady();
+}
+
+function initializeGapiClient() {
+    console.log('🔄 GAPI 클라이언트 초기화 시작');
+    gapi.client.init({
+        apiKey: API_KEY,
+        discoveryDocs: [DISCOVERY_DOC],
+    }).then(() => {
+        gapiReady = true;
+        console.log('✅ GAPI 클라이언트 초기화 완료');
+        checkIfReady();
+    }).catch((error) => {
+        console.error('❌ GAPI 클라이언트 초기화 실패:', error);
+        updateConnectionStatus('GAPI 초기화 실패', false);
+        showAlert('Google Sheets API 초기화에 실패했습니다.', 'error');
+    });
+}
+
+// ========== 유틸리티 함수들 ==========
+function safeString(str) {
+    if (!str) return '';
+    return String(str).trim();
+}
+
+function showAlert(message, type = 'info') {
+    const existingAlert = document.querySelector('.alert');
+    if (existingAlert) existingAlert.remove();
+
+    const alert = document.createElement('div');
+    alert.className = `alert alert-${type}`;
+    alert.textContent = message;
+    document.body.appendChild(alert);
+
+    setTimeout(() => {
+        if (alert.parentNode) alert.remove();
+    }, 3000);
+}
+
+function updateConnectionStatus(message, connected) {
+    const status = document.getElementById('connectionStatus');
+    if (!status) return;
+    status.querySelector('span').textContent = message;
+    status.querySelector('.status-dot').style.background = connected ? '#4ade80' : '#e53e3e';
+}
+
+function checkIfReady() {
+    if (gapiReady && gisReady) {
+        updateConnectionStatus('로그인 필요', false);
+        console.log('🚀 Google API 준비 완료');
+    }
+}
+
+// ========== 인증 및 UI 관리 ==========
+function setSigninStatus(signedIn) {
+    console.log('🔄 로그인 상태 설정:', signedIn);
+    isAuthorized = signedIn;
+    
+    const authSection = document.getElementById('authSection');
+    const signoutButton = document.getElementById('signoutButton');
+    const customerButtons = document.getElementById('customerButtons');
+    const paymentButtons = document.getElementById('paymentButtons');
+    
+    if (authSection) authSection.style.display = signedIn ? 'none' : 'block';
+    if (signoutButton) signoutButton.style.display = signedIn ? 'inline-block' : 'none';
+    if (customerButtons) customerButtons.style.display = signedIn ? 'flex' : 'none';
+    if (paymentButtons) paymentButtons.style.display = signedIn ? 'flex' : 'none';
+    
+    updateConnectionStatus(signedIn ? '연결됨' : '로그인 필요', signedIn);
+    
+    if (signedIn) {
+        loadAllData();
+    } else {
+        customersData = [];
+        billsData = [];
+        paymentsData = [];
+        renderCustomers();
+        renderBills();
+        renderPayments();
+        updateDashboard();
+    }
+}
+
+function handleAuthClick() {
+    if (tokenClient) {
+        tokenClient.requestAccessToken();
+    } else {
+        showAlert('Google API가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.', 'warning');
+    }
+}
+
+function handleSignoutClick() {
+    if (gapi && gapi.auth2) {
+        gapi.auth2.getAuthInstance().signOut();
+    }
+    setSigninStatus(false);
+}
+
+// ========== 데이터 로드 함수들 ==========
+async function loadAllData() {
+    console.log('🔄 loadAllData 시작');
+    try {
+        showAlert('데이터를 불러오는 중...', 'info');
+        
+        console.log('📊 고객 데이터 로드 중...');
+        await loadCustomers();
+        
+        console.log('💰 관리비 데이터 로드 중...');
+        await loadBills();
+        
+        console.log('💳 결제 데이터 로드 중...');
+        await loadPayments();
+        
+        console.log('✅ 모든 데이터 로드 완료');
+        showAlert('데이터 로드 완료', 'success');
+    } catch (e) {
+        console.error('❌ 데이터 로드 오류:', e);
+        showAlert('데이터 로드 중 오류: ' + e.message, 'error');
+    }
+}
+
+async function loadCustomers() {
+    try {
+        console.log('📡 고객정보 시트 요청 중...');
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: GOOGLE_SHEET_ID,
+            range: '고객정보!A1:Z100', // 정확한 시트 이름 사용
+        });
+        
+        console.log('📡 고객정보 응답:', response);
+        const allData = response.result.values || [];
+        console.log('📊 고객정보 전체 데이터:', allData);
+        
+        if (allData.length > 0) {
+            console.log('📊 고객정보 헤더:', allData[0]);
+            customersData = allData.slice(1); // 첫 번째 행(헤더) 제외
+            console.log('📊 고객정보 데이터 (헤더 제외):', customersData);
+            console.log('📊 고객정보 첫 번째 데이터:', customersData[0]);
+        } else {
+            customersData = [];
+            console.log('📊 고객정보 데이터 없음');
+        }
+        
+        renderCustomers();
+        updateDashboard();
+    } catch (e) {
+        console.error('❌ 고객 데이터 로드 실패:', e);
+        showAlert('고객 데이터 불러오기 실패: ' + e.message, 'error');
+    }
+}
+
+async function loadBills() {
+    try {
+        console.log('📡 월별관리비 시트 요청 중...');
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: GOOGLE_SHEET_ID,
+            range: '월별관리비!A1:Z100', // 정확한 시트 이름 사용
+        });
+        
+        console.log('📡 월별관리비 응답:', response);
+        const allData = response.result.values || [];
+        console.log('💰 월별관리비 전체 데이터:', allData);
+        
+        if (allData.length > 0) {
+            console.log('💰 월별관리비 헤더:', allData[0]);
+            billsData = allData.slice(1); // 첫 번째 행(헤더) 제외
+            console.log('💰 월별관리비 데이터 (헤더 제외):', billsData);
+            console.log('💰 월별관리비 첫 번째 데이터:', billsData[0]);
+        } else {
+            billsData = [];
+            console.log('💰 월별관리비 데이터 없음');
+        }
+        
+        renderBills();
+        updateDashboard();
+    } catch (e) {
+        console.error('❌ 관리비 데이터 로드 실패:', e);
+        showAlert('관리비 데이터 불러오기 실패: ' + e.message, 'error');
+    }
+}
+
+async function loadPayments() {
+    try {
+        console.log('📡 결제내역 시트 요청 중...');
+        const response = await gapi.client.sheets.spreadsheets.values.get({
+            spreadsheetId: GOOGLE_SHEET_ID,
+            range: '결제내역!A1:Z100', // 정확한 시트 이름 사용
+        });
+        
+        console.log('📡 결제내역 응답:', response);
+        const allData = response.result.values || [];
+        console.log('💳 결제내역 전체 데이터:', allData);
+        
+        if (allData.length > 0) {
+            console.log('💳 결제내역 헤더:', allData[0]);
+            paymentsData = allData.slice(1); // 첫 번째 행(헤더) 제외
+            console.log('💳 결제내역 데이터 (헤더 제외):', paymentsData);
+            console.log('💳 결제내역 첫 번째 데이터:', paymentsData[0]);
+        } else {
+            paymentsData = [];
+            console.log('💳 결제내역 데이터 없음');
+        }
+        
+        renderPayments();
+        updateDashboard();
+    } catch (e) {
+        console.error('❌ 결제 데이터 로드 실패:', e);
+        showAlert('결제 데이터 불러오기 실패: ' + e.message, 'error');
+    }
+}
+
+// ========== 렌더링 함수들 ==========
+function updateDashboard() {
+    console.log('대시보드 업데이트 시작');
+    console.log('고객 데이터 길이:', customersData.length);
+    console.log('관리비 데이터 길이:', billsData.length);
+    console.log('결제 데이터 길이:', paymentsData.length);
+    
+    // 총 고객 수
+    document.getElementById('totalCustomers').textContent = customersData.length || 0;
+    
+    // 관리비 데이터가 있는 경우에만 계산
+    if (billsData.length > 0) {
+        console.log('관리비 데이터 샘플:', billsData[0]);
+        // 관리비 데이터 구조에 맞게 컬럼 인덱스 조정 필요
+        const paidCount = billsData.filter(row => row && row[3] && row[3].includes('완료')).length;
+        const unpaidCount = billsData.filter(row => row && row[3] && row[3].includes('미납')).length;
+        
+        document.getElementById('paidCount').textContent = paidCount;
+        document.getElementById('unpaidCount').textContent = unpaidCount;
+        
+        const unpaidAmount = billsData
+            .filter(row => row && row[3] && row[3].includes('미납'))
+            .reduce((sum, row) => {
+                const amount = parseInt(row[2]) || 0;
+                return sum + amount;
+            }, 0);
+        document.getElementById('overdueAmount').textContent = unpaidAmount.toLocaleString() + '원';
+    } else {
+        document.getElementById('paidCount').textContent = '0';
+        document.getElementById('unpaidCount').textContent = '0'; 
+        document.getElementById('overdueAmount').textContent = '0원';
+    }
+    
+    // 최근 결제 내역
+    if (paymentsData.length > 0) {
+        console.log('결제 데이터 샘플:', paymentsData[0]);
+        const recentPaymentsHtml = paymentsData.slice(0, 5).map(row => {
+            if (!row || row.length === 0) return '';
+            return `<div style="padding: 8px; border-bottom: 1px solid #eee;">
+                ${safeString(row[0])} - ${safeString(row[1])} - ${safeString(row[2])}
+            </div>`;
+        }).filter(html => html !== '').join('');
+        
+        document.getElementById('recentPayments').innerHTML = recentPaymentsHtml || 
+            '<p style="text-align: center; color: #666; padding: 20px;">최근 결제 내역이 없습니다.</p>';
+    } else {
+        document.getElementById('recentPayments').innerHTML = 
+            '<p style="text-align: center; color: #666; padding: 20px;">최근 결제 내역이 없습니다.</p>';
+    }
+}
+
+function renderCustomers() {
+    const container = document.getElementById('customersTableContainer');
+    if (!container) return;
+    
+    if (!isAuthorized) {
+        container.innerHTML = '<div class="card"><p style="text-align: center; color: #666; padding: 20px;">로그인 후 고객 목록을 확인할 수 있습니다.</p></div>';
+        return;
+    }
+    
+    let html = '<table class="data-table"><thead><tr><th>이름</th><th>연락처</th><th>주소</th><th>등록일</th><th>관리</th></tr></thead><tbody>';
+    if (customersData.length === 0) {
+        html += '<tr><td colspan="5" style="text-align:center;">고객 데이터가 없습니다.</td></tr>';
+    } else {
+        customersData.forEach((row, idx) => {
+            html += `<tr>
+                <td>${safeString(row[1])}</td>
+                <td>${safeString(row[2])}</td>
+                <td>${safeString(row[6])}</td>
+                <td>${safeString(row[11])}</td>
+                <td class="action-buttons">
+                    <button class='btn btn-sm btn-primary' onclick='openEditCustomerModal(${idx})'>수정</button>
+                    <button class='btn btn-sm btn-danger' onclick='openDeleteModal(${idx})'>삭제</button>
+                </td>
+            </tr>`;
+        });
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderBills() {
+    const container = document.getElementById('billsTableContainer');
+    if (!container) return;
+    
+    if (!isAuthorized) {
+        container.innerHTML = '<div class="card"><p style="text-align: center; color: #666; padding: 20px;">로그인 후 관리비 목록을 확인할 수 있습니다.</p></div>';
+        return;
+    }
+    
+    let html = '<table class="data-table"><thead><tr><th>고객명</th><th>월</th><th>금액</th><th>납부여부</th></tr></thead><tbody>';
+    if (billsData.length === 0) {
+        html += '<tr><td colspan="4" style="text-align:center;">관리비 데이터가 없습니다.</td></tr>';
+    } else {
+        billsData.forEach(row => {
+            html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
+        });
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function renderPayments() {
+    const container = document.getElementById('paymentsTableContainer');
+    if (!container) return;
+    
+    if (!isAuthorized) {
+        container.innerHTML = '<div class="card"><p style="text-align: center; color: #666; padding: 20px;">로그인 후 결제 내역을 확인할 수 있습니다.</p></div>';
+        return;
+    }
+    
+    let html = '<table class="data-table"><thead><tr><th>고객명</th><th>결제일</th><th>금액</th><th>결제수단</th></tr></thead><tbody>';
+    if (paymentsData.length === 0) {
+        html += '<tr><td colspan="4" style="text-align:center;">결제 데이터가 없습니다.</td></tr>';
+    } else {
+        paymentsData.forEach(row => {
+            html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
+        });
+    }
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+// ========== 탭 및 UI 관리 ==========
+function showTab(tabName) {
+    document.querySelectorAll('.tab-content').forEach(tab => tab.classList.remove('active'));
+    document.querySelectorAll('.nav-tab').forEach(tab => tab.classList.remove('active'));
+    
+    document.getElementById(tabName).classList.add('active');
+    event.target.classList.add('active');
+}
+
+// ========== 새로고침 함수들 ==========
+function refreshDashboard() {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    loadAllData();
+}
+
+function refreshCustomers() {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    loadCustomers();
+}
+
+function refreshBills() {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    loadBills();
+}
+
+function refreshPayments() {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    loadPayments();
+}
+
+function refreshSettings() {
+    showAlert('설정은 읽기 전용입니다.', 'info');
+}
+
+// ========== 고객 관리 모달 ==========
+function openCustomerModal() {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    document.getElementById('customerModalTitle').textContent = '고객 추가';
+    document.getElementById('customerForm').reset();
+    document.getElementById('customerRowIndex').value = '';
+    document.getElementById('created_date').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('customerModal').classList.add('show');
+}
+
+function closeCustomerModal() {
+    document.getElementById('customerModal').classList.remove('show');
+}
+
+function openEditCustomerModal(idx) {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    const row = customersData[idx];
+    document.getElementById('customerModalTitle').textContent = '고객 수정';
+    document.getElementById('customer_name').value = safeString(row[1]);
+    document.getElementById('phone_full').value = safeString(row[2]);
+    document.getElementById('address').value = safeString(row[6]);
+    document.getElementById('created_date').value = safeString(row[11]);
+    document.getElementById('customerRowIndex').value = idx;
+    document.getElementById('customerModal').classList.add('show');
+}
+
+let deleteTargetIdx = null;
+function openDeleteModal(idx) {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    deleteTargetIdx = idx;
+    document.getElementById('deleteModal').classList.add('show');
+}
+
+function closeDeleteModal() {
+    deleteTargetIdx = null;
+    document.getElementById('deleteModal').classList.remove('show');
+}
+
+async function submitCustomerForm() {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    
+    const name = document.getElementById('customer_name').value.trim();
+    const phone = document.getElementById('phone_full').value.trim();
+    const address = document.getElementById('address').value.trim();
+    const created = document.getElementById('created_date').value.trim();
+    const idx = document.getElementById('customerRowIndex').value;
+    
+    if (!name || !phone || !address || !created) {
+        showAlert('모든 항목을 입력해주세요.', 'warning');
+        return;
+    }
+    
+    console.log('📝 고객 정보 저장 시작:', { name, phone, address, created, idx });
+    
+    const phone_last4 = phone.slice(-4);
+    const updated_date = new Date().toISOString().slice(0, 10);
+    let values;
+    
+    if (idx === '') {
+        // 신규 등록
+        let maxId = 0;
+        customersData.forEach(row => {
+            const id = row[0];
+            if (id && id.startsWith('CUST_')) {
+                const num = parseInt(id.replace('CUST_', ''));
+                if (!isNaN(num) && num > maxId) maxId = num;
+            }
+        });
+        const newId = 'CUST_' + String(maxId + 1).padStart(3, '0');
+        values = [[newId, name, phone, phone_last4, '', '', address, '', '', '', '', created, updated_date]];
+        console.log('📝 신규 고객 데이터:', values);
+    } else {
+        // 수정
+        const old = customersData[idx];
+        values = [[old[0], name, phone, phone_last4, old[4] || '', old[5] || '', address, old[7] || '', old[8] || '', old[9] || '', old[10] || '', created, updated_date]];
+        console.log('📝 수정 고객 데이터:', values);
+    }
+    
+    try {
+        if (idx === '') {
+            console.log('📝 Google Sheets에 추가 요청 중...');
+            const response = await gapi.client.sheets.spreadsheets.values.append({
+                spreadsheetId: GOOGLE_SHEET_ID,
+                range: '고객정보!A:M', // 범위를 더 명확하게 지정
+                valueInputOption: 'USER_ENTERED',
+                insertDataOption: 'INSERT_ROWS',
+                resource: { values }
             });
-            checkIfReady();
-        };
-
-        // Google API 설정
-        const CLIENT_ID = '720685489156-p4hou9aacmcpb1b6pdckjj90isfl5ru5.apps.googleusercontent.com';
-        const API_KEY = 'AIzaSyD0tH5ebOAlUMnGrrLKdLAM3EzIuDAfPcA';
-        const DISCOVERY_DOC = 'https://sheets.googleapis.com/$discovery/rest?version=v4';
-        const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
-        const GOOGLE_SHEET_ID = '1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg';
-
-        let tokenClient;
-        let isAuthorized = false;
-        let gapiReady = false;
-        let gisReady = false;
-        let customersData = [], billsData = [], paymentsData = [], settingsData = {}, currentCustomerId = null;
-
-        // 한글 문자열 안전 처리 함수
-        function safeString(str) {
-            if (!str) return '';
-            return String(str).trim();
-        }
-
-        // 숫자 안전 처리 함수
-        function safeNumber(num) {
-            const parsed = parseInt(num);
-            return isNaN(parsed) ? 0 : parsed;
-        }
-
-        // 알림 표시 함수
-        function showAlert(message, type = 'info') {
-            // 기존 알림 제거
-            const existingAlert = document.querySelector('.alert');
-            if (existingAlert) {
-                existingAlert.remove();
-            }
-
-            const alert = document.createElement('div');
-            alert.className = `alert alert-${type}`;
-            alert.textContent = message;
-            document.body.appendChild(alert);
-
-            // 3초 후 자동 제거
-            setTimeout(() => {
-                if (alert.parentNode) {
-                    alert.remove();
-                }
-            }, 3000);
-        }
-
-        // 탭 전환 함수
-        function showTab(tabName) {
-            // 모든 탭 비활성화
-            document.querySelectorAll('.tab-content').forEach(tab => {
-                tab.classList.remove('active');
+            console.log('📝 추가 응답:', response);
+            showAlert('고객이 추가되었습니다.', 'success');
+        } else {
+            const rowNumber = parseInt(idx) + 2; // 헤더를 고려한 실제 행 번호
+            console.log('📝 Google Sheets에 수정 요청 중... 행:', rowNumber);
+            const response = await gapi.client.sheets.spreadsheets.values.update({
+                spreadsheetId: GOOGLE_SHEET_ID,
+                range: `고객정보!A${rowNumber}:M${rowNumber}`, // 정확한 시트 이름 사용
+                valueInputOption: 'USER_ENTERED',
+                resource: { values }
             });
-            document.querySelectorAll('.nav-tab').forEach(tab => {
-                tab.classList.remove('active');
-            });
-
-            // 선택된 탭 활성화
-            document.getElementById(tabName).classList.add('active');
-            event.target.classList.add('active');
+            console.log('📝 수정 응답:', response);
+            showAlert('고객 정보가 수정되었습니다.', 'success');
         }
-
-        // 인증 상태 UI 업데이트
-        function updateConnectionStatus(message, connected) {
-            const status = document.getElementById('connectionStatus');
-            if (!status) return;
-            status.querySelector('span').textContent = message;
-            status.querySelector('.status-dot').style.background = connected ? '#4ade80' : '#e53e3e';
+        closeCustomerModal();
+        await loadCustomers();
+    } catch (e) {
+        console.error('❌ 고객 정보 저장 실패:', e);
+        console.error('❌ 오류 상세:', e.result);
+        
+        // 권한 관련 오류인지 확인
+        if (e.status === 403) {
+            showAlert('구글 시트 편집 권한이 없습니다. 시트 소유자에게 편집 권한을 요청하세요.', 'error');
+        } else if (e.status === 400) {
+            showAlert('잘못된 요청입니다. 시트 이름이나 범위를 확인해주세요.', 'error');
+        } else {
+            showAlert('고객 정보 저장 실패: ' + e.message, 'error');
         }
+    }
+}
 
-        // 로그인 상태에 따른 UI 표시/숨김 처리
-        function setSigninStatus(signedIn) {
-            console.log('setSigninStatus 호출됨, signedIn:', signedIn);
-            isAuthorized = signedIn;
-            
-            // 인증 섹션 토글
-            const authSection = document.getElementById('authSection');
-            const signoutButton = document.getElementById('signoutButton');
-            
-            if (authSection) {
-                authSection.style.display = signedIn ? 'none' : 'block';
-                console.log('authSection display:', authSection.style.display);
-            }
-            
-            if (signoutButton) {
-                signoutButton.style.display = signedIn ? 'inline-block' : 'none';
-                console.log('signoutButton display:', signoutButton.style.display);
-            }
-            
-            // 연결 상태 업데이트
-            updateConnectionStatus(signedIn ? '연결됨' : '로그인 필요', signedIn);
-            
-            // 액션 버튼들 표시/숨김 처리
-            const customerButtons = document.getElementById('customerButtons');
-            const paymentButtons = document.getElementById('paymentButtons');
-            
-            if (customerButtons) {
-                customerButtons.style.display = signedIn ? 'flex' : 'none';
-                console.log('customerButtons display:', customerButtons.style.display);
-            }
-            if (paymentButtons) {
-                paymentButtons.style.display = signedIn ? 'flex' : 'none';
-                console.log('paymentButtons display:', paymentButtons.style.display);
-            }
-            
-            if (signedIn) {
-                console.log('로그인됨 - 데이터 로드 시작');
-                // 데이터 로드
-                loadAllData();
-            } else {
-                console.log('로그아웃됨 - 데이터 초기화');
-                // 데이터 초기화 및 테이블 재렌더링
-                customersData = [];
-                billsData = [];
-                paymentsData = [];
-                settingsData = {};
-                renderCustomers();
-                renderBills();
-                renderPayments();
-                updateDashboard();
-            }
-        }
+async function getSheetIdByName(sheetName) {
+    const res = await gapi.client.sheets.spreadsheets.get({
+        spreadsheetId: GOOGLE_SHEET_ID
+    });
+    const sheet = res.result.sheets.find(s => s.properties.title === sheetName);
+    return sheet ? sheet.properties.sheetId : null;
+}
 
-        // GAPI, GIS 모두 준비되면 인증 버튼 활성화
-        function checkIfReady() {
-            if (gapiReady && gisReady) {
-                const authButton = document.getElementById('authSection').querySelector('.btn-primary');
-                if (authButton) {
-                    authButton.disabled = false;
-                }
-                updateConnectionStatus('로그인 필요', false);
-            }
-        }
-
-        // 구글 로그인
-        function handleAuthClick() {
-            if (tokenClient) {
-                tokenClient.requestAccessToken();
-            } else {
-                showAlert('Google API가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.', 'warning');
-            }
-        }
-        window.handleAuthClick = handleAuthClick;
-
-        // 로그아웃
-        function handleSignoutClick() {
-            if (gapi && gapi.auth2) {
-                gapi.auth2.getAuthInstance().signOut();
-            }
-            setSigninStatus(false);
-        }
-        window.handleSignoutClick = handleSignoutClick;
-
-        // GAPI 클라이언트 초기화 (gapiLoaded 함수는 위에서 initGapi로 변경됨)
-        function initializeGapiClient() {
-            console.log('GAPI 클라이언트 초기화 시작');
-            gapi.client.init({
-                apiKey: API_KEY,
-                discoveryDocs: [DISCOVERY_DOC],
-            }).then(() => {
-                gapiReady = true;
-                console.log('GAPI 클라이언트 초기화 완료');
-                checkIfReady();
-            }).catch((error) => {
-                console.error('GAPI 클라이언트 초기화 실패:', error);
-                updateConnectionStatus('GAPI 초기화 실패', false);
-                showAlert('Google Sheets API 초기화에 실패했습니다.', 'error');
-            });
-        }
-
-        // 구글 시트 데이터 로드 함수들 구현
-        async function loadCustomers() {
-            try {
-                const response = await gapi.client.sheets.spreadsheets.values.get({
-                    spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '고객정보!A2:Z',
-                });
-                customersData = response.result.values || [];
-                renderCustomers();
-                updateDashboard();
-            } catch (e) {
-                console.error('고객 데이터 로드 실패:', e);
-                showAlert('고객 데이터 불러오기 실패: ' + e.message, 'error');
-            }
-        }
-
-        async function loadBills() {
-            try {
-                const response = await gapi.client.sheets.spreadsheets.values.get({
-                    spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '월별관리비!A2:Z',
-                });
-                billsData = response.result.values || [];
-                renderBills();
-                updateDashboard();
-            } catch (e) {
-                console.error('관리비 데이터 로드 실패:', e);
-                showAlert('관리비 데이터 불러오기 실패: ' + e.message, 'error');
-            }
-        }
-
-        async function loadPayments() {
-            try {
-                const response = await gapi.client.sheets.spreadsheets.values.get({
-                    spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '결제내역!A2:Z',
-                });
-                paymentsData = response.result.values || [];
-                renderPayments();
-                updateDashboard();
-            } catch (e) {
-                console.error('결제 데이터 로드 실패:', e);
-                showAlert('결제 데이터 불러오기 실패: ' + e.message, 'error');
-            }
-        }
-
-        // 대시보드 통계 업데이트
-        function updateDashboard() {
-            document.getElementById('totalCustomers').textContent = customersData.length;
+// ========== 엑셀 업로드 및 처리 ==========
+function handleDepositUpload(event) {
+    if (!isAuthorized) {
+        showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+        return;
+    }
+    
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const fileName = file.name.toLowerCase();
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        try {
+            let data = [];
             
-            // 간단한 통계 계산 (실제 데이터 구조에 맞게 조정 필요)
-            document.getElementById('paidCount').textContent = billsData.filter(row => row[3] === '완료').length;
-            document.getElementById('unpaidCount').textContent = billsData.filter(row => row[3] === '미납').length;
-            
-            const unpaidAmount = billsData
-                .filter(row => row[3] === '미납')
-                .reduce((sum, row) => sum + (parseInt(row[2]) || 0), 0);
-            document.getElementById('overdueAmount').textContent = unpaidAmount.toLocaleString() + '원';
-            
-            // 최근 결제 내역
-            const recentPaymentsHtml = paymentsData.slice(0, 5).map(row => 
-                `<div>${safeString(row[0])} - ${safeString(row[1])} - ${safeString(row[2])}원</div>`
-            ).join('');
-            document.getElementById('recentPayments').innerHTML = recentPaymentsHtml || '<p style="text-align: center; color: #666; padding: 20px;">최근 결제 내역이 없습니다.</p>';
-        }
-
-        // 데이터 렌더링 함수들
-        function renderCustomers() {
-            const container = document.getElementById('customersTableContainer');
-            if (!container) return;
-            
-            if (!isAuthorized) {
-                container.innerHTML = '<div class="card"><p style="text-align: center; color: #666; padding: 20px;">로그인 후 고객 목록을 확인할 수 있습니다.</p></div>';
-                return;
-            }
-            
-            let html = '<table class="data-table"><thead><tr><th>이름</th><th>연락처</th><th>주소</th><th>등록일</th><th>관리</th></tr></thead><tbody>';
-            if (customersData.length === 0) {
-                html += '<tr><td colspan="5" style="text-align:center;">고객 데이터가 없습니다.</td></tr>';
-            } else {
-                customersData.forEach((row, idx) => {
-                    html += `<tr>
-                        <td>${safeString(row[1])}</td>
-                        <td>${safeString(row[2])}</td>
-                        <td>${safeString(row[6])}</td>
-                        <td>${safeString(row[11])}</td>
-                        <td class="action-buttons">
-                            <button class='btn btn-sm btn-primary' onclick='openEditCustomerModal(${idx})'>수정</button>
-                            <button class='btn btn-sm btn-danger' onclick='openDeleteModal(${idx})'>삭제</button>
-                        </td>
-                    </tr>`;
-                });
-            }
-            html += '</tbody></table>';
-            container.innerHTML = html;
-        }
-
-        function renderBills() {
-            const container = document.getElementById('billsTableContainer');
-            if (!container) return;
-            
-            if (!isAuthorized) {
-                container.innerHTML = '<div class="card"><p style="text-align: center; color: #666; padding: 20px;">로그인 후 관리비 목록을 확인할 수 있습니다.</p></div>';
-                return;
-            }
-            
-            let html = '<table class="data-table"><thead><tr><th>고객명</th><th>월</th><th>금액</th><th>납부여부</th></tr></thead><tbody>';
-            if (billsData.length === 0) {
-                html += '<tr><td colspan="4" style="text-align:center;">관리비 데이터가 없습니다.</td></tr>';
-            } else {
-                billsData.forEach(row => {
-                    html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
-                });
-            }
-            html += '</tbody></table>';
-            container.innerHTML = html;
-        }
-
-        function renderPayments() {
-            const container = document.getElementById('paymentsTableContainer');
-            if (!container) return;
-            
-            if (!isAuthorized) {
-                container.innerHTML = '<div class="card"><p style="text-align: center; color: #666; padding: 20px;">로그인 후 결제 내역을 확인할 수 있습니다.</p></div>';
-                return;
-            }
-            
-            let html = '<table class="data-table"><thead><tr><th>고객명</th><th>결제일</th><th>금액</th><th>결제수단</th></tr></thead><tbody>';
-            if (paymentsData.length === 0) {
-                html += '<tr><td colspan="4" style="text-align:center;">결제 데이터가 없습니다.</td></tr>';
-            } else {
-                paymentsData.forEach(row => {
-                    html += `<tr><td>${safeString(row[0])}</td><td>${safeString(row[1])}</td><td>${safeString(row[2])}</td><td>${safeString(row[3])}</td></tr>`;
-                });
-            }
-            html += '</tbody></table>';
-            container.innerHTML = html;
-        }
-
-        // 입금내역 엑셀(CSV) 업로드 및 파싱
-        function handleDepositUpload(event) {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            
-            const file = event.target.files[0];
-            if (!file) return;
-            
-            const fileName = file.name.toLowerCase();
-            const reader = new FileReader();
-            
-            reader.onload = function(e) {
-                try {
-                    let data = [];
-                    
-                    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-                        // 엑셀 파일 처리
-                        const arrayBuffer = e.target.result;
-                        const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                        const firstSheetName = workbook.SheetNames[0];
-                        const worksheet = workbook.Sheets[firstSheetName];
-                        data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-                        
-                        // 첫 번째 행을 헤더로, 나머지를 데이터로 변환
-                        if (data.length > 0) {
-                            const headers = data[0];
-                            const rows = data.slice(1);
-                            const jsonData = rows.map(row => {
-                                const obj = {};
-                                headers.forEach((header, index) => {
-                                    obj[header] = row[index] || '';
-                                });
-                                return obj;
-                            }).filter(row => Object.values(row).some(val => val !== '')); // 빈 행 제거
-                            
-                            renderDepositPreview(jsonData);
-                        } else {
-                            showAlert('엑셀 파일에 데이터가 없습니다.', 'warning');
-                        }
-                    } else if (fileName.endsWith('.csv')) {
-                        // CSV 파일 처리
-                        const csv = e.target.result;
-                        if (window.Papa) {
-                            Papa.parse(csv, {
-                                header: true,
-                                skipEmptyLines: true,
-                                encoding: 'UTF-8',
-                                complete: function(results) {
-                                    renderDepositPreview(results.data);
-                                },
-                                error: function(error) {
-                                    console.error('CSV 파싱 오류:', error);
-                                    showAlert('CSV 파일 파싱 중 오류가 발생했습니다.', 'error');
-                                }
-                            });
-                        } else {
-                            showAlert('CSV 파서(PapaParse)가 로드되지 않았습니다.', 'error');
-                        }
-                    } else {
-                        showAlert('지원하지 않는 파일 형식입니다. CSV 또는 Excel 파일을 업로드해주세요.', 'error');
-                    }
-                } catch (error) {
-                    console.error('파일 처리 오류:', error);
-                    showAlert('파일 처리 중 오류가 발생했습니다: ' + error.message, 'error');
-                }
-            };
-            
-            // 엑셀 파일은 ArrayBuffer로, CSV는 텍스트로 읽기
             if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
-                reader.readAsArrayBuffer(file);
-            } else {
-                reader.readAsText(file, 'UTF-8');
-            }
-        }
-
-        // 입금내역 미리보기 테이블 렌더링
-        function renderDepositPreview(data) {
-            console.log('입금내역 데이터:', data);
-            
-            let html = '<div class="card"><h3>입금내역 미리보기</h3>';
-            if (!data || data.length === 0) {
-                html += '<p>데이터가 없습니다.</p></div>';
-                document.getElementById('depositPreviewContainer').innerHTML = html;
-                return;
-            }
-            
-            // 매칭된 데이터 분석
-            const matchedDeposits = [];
-            const unmatchedDeposits = [];
-            
-            data.forEach((row, index) => {
-                const content = safeString(row['내용'] || row['적요'] || row['거래내용'] || '');
-                const amount = String(row['거래금액'] || row['입금액'] || row['금액'] || '').replace(/[^\d]/g, '');
-                const transactionType = safeString(row['구분'] || row['입출금구분'] || '');
-                const date = safeString(row['거래일시'] || row['거래일'] || row['날짜'] || '');
+                const arrayBuffer = e.target.result;
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
                 
-                let matchInfo = null;
-                
-                if (transactionType.includes('입금') || content.includes('입금')) {
-                    customersData.forEach(cust => {
-                        const name = safeString(cust[1]);
-                        const unit = safeString(cust[5]);
-                        const fee = String(cust[8] || '').replace(/[^\d]/g, '');
-                        
-                        if ((content.includes(name) || content.includes(unit)) && amount === fee) {
-                            matchInfo = {
-                                customerName: name,
-                                unit: unit,
-                                amount: amount,
-                                fee: fee,
-                                customerId: cust[0]
-                            };
+                if (data.length > 0) {
+                    const headers = data[0];
+                    const rows = data.slice(1);
+                    const jsonData = rows.map(row => {
+                        const obj = {};
+                        headers.forEach((header, index) => {
+                            obj[header] = row[index] || '';
+                        });
+                        return obj;
+                    }).filter(row => Object.values(row).some(val => val !== ''));
+                    
+                    renderDepositPreview(jsonData);
+                } else {
+                    showAlert('엑셀 파일에 데이터가 없습니다.', 'warning');
+                }
+            } else if (fileName.endsWith('.csv')) {
+                const csv = e.target.result;
+                if (window.Papa) {
+                    Papa.parse(csv, {
+                        header: true,
+                        skipEmptyLines: true,
+                        encoding: 'UTF-8',
+                        complete: function(results) {
+                            renderDepositPreview(results.data);
+                        },
+                        error: function(error) {
+                            console.error('CSV 파싱 오류:', error);
+                            showAlert('CSV 파일 파싱 중 오류가 발생했습니다.', 'error');
                         }
                     });
-                    
-                    if (matchInfo) {
-                        matchedDeposits.push({
-                            ...row,
-                            index,
-                            matchInfo,
-                            date,
-                            amount,
-                            content
-                        });
-                    } else {
-                        unmatchedDeposits.push({
-                            ...row,
-                            index,
-                            date,
-                            amount,
-                            content
-                        });
-                    }
-                }
-            });
-            
-            html += '<div style="margin-bottom: 20px;">';
-            html += `<div style="display: flex; gap: 15px; margin-bottom: 15px;">`;
-            html += `<div style="padding: 10px; background: #d4edda; border-radius: 8px; flex: 1;">`;
-            html += `<strong style="color: #155724;">✅ 자동 매칭됨: ${matchedDeposits.length}건</strong>`;
-            html += `</div>`;
-            html += `<div style="padding: 10px; background: #fff3cd; border-radius: 8px; flex: 1;">`;
-            html += `<strong style="color: #856404;">⚠️ 매칭 안됨: ${unmatchedDeposits.length}건</strong>`;
-            html += `</div>`;
-            html += `</div>`;
-            
-            if (matchedDeposits.length > 0) {
-                html += '<button class="btn btn-success" onclick="processMatchedDeposits()" style="margin-right: 10px;">매칭된 입금 처리하기</button>';
-            }
-            html += '</div>';
-            
-            // 매칭된 입금 내역
-            if (matchedDeposits.length > 0) {
-                html += '<h4 style="color: #155724; margin-bottom: 15px;">✅ 자동 매칭된 입금 내역</h4>';
-                html += '<table class="data-table" style="margin-bottom: 25px;"><thead><tr>';
-                html += '<th>거래일시</th><th>입금액</th><th>고객명</th><th>호수</th><th>거래내용</th><th>상태</th>';
-                html += '</tr></thead><tbody>';
-                
-                matchedDeposits.forEach(deposit => {
-                    html += '<tr style="background: #d4edda;">';
-                    html += `<td>${deposit.date}</td>`;
-                    html += `<td>${parseInt(deposit.amount).toLocaleString()}원</td>`;
-                    html += `<td><strong>${deposit.matchInfo.customerName}</strong></td>`;
-                    html += `<td>${deposit.matchInfo.unit}</td>`;
-                    html += `<td>${deposit.content}</td>`;
-                    html += `<td><span style="color: #155724; font-weight: 600;">매칭됨</span></td>`;
-                    html += '</tr>';
-                });
-                
-                html += '</tbody></table>';
-            }
-            
-            // 매칭되지 않은 입금 내역
-            if (unmatchedDeposits.length > 0) {
-                html += '<h4 style="color: #856404; margin-bottom: 15px;">⚠️ 매칭되지 않은 입금 내역</h4>';
-                html += '<table class="data-table"><thead><tr>';
-                html += '<th>거래일시</th><th>입금액</th><th>거래내용</th><th>수동매칭</th>';
-                html += '</tr></thead><tbody>';
-                
-                unmatchedDeposits.forEach((deposit, idx) => {
-                    html += '<tr style="background: #fff3cd;">';
-                    html += `<td>${deposit.date}</td>`;
-                    html += `<td>${parseInt(deposit.amount).toLocaleString()}원</td>`;
-                    html += `<td>${deposit.content}</td>`;
-                    html += `<td>`;
-                    html += `<select onchange="manualMatch(${idx}, this.value)" style="padding: 5px; border-radius: 4px;">`;
-                    html += `<option value="">고객 선택</option>`;
-                    customersData.forEach(cust => {
-                        html += `<option value="${cust[0]}">${safeString(cust[1])} (${safeString(cust[5])})</option>`;
-                    });
-                    html += `</select>`;
-                    html += `</td>`;
-                    html += '</tr>';
-                });
-                
-                html += '</tbody></table>';
-            }
-            
-            html += '</div>';
-            
-            // 전역 변수에 저장 (다른 함수에서 사용하기 위해)
-            window.currentMatchedDeposits = matchedDeposits;
-            window.currentUnmatchedDeposits = unmatchedDeposits;
-            
-            document.getElementById('depositPreviewContainer').innerHTML = html;
-        }
-        
-        // 매칭된 입금 처리하기
-        async function processMatchedDeposits() {
-            if (!window.currentMatchedDeposits || window.currentMatchedDeposits.length === 0) {
-                showAlert('처리할 매칭된 입금이 없습니다.', 'warning');
-                return;
-            }
-            
-            try {
-                showAlert('입금 내역을 처리하는 중...', 'info');
-                
-                // 결제내역 시트에 데이터 추가
-                const values = window.currentMatchedDeposits.map(deposit => [
-                    deposit.matchInfo.customerName,
-                    deposit.date,
-                    parseInt(deposit.amount).toLocaleString() + '원',
-                    '계좌이체',
-                    '자동매칭',
-                    deposit.matchInfo.customerId,
-                    new Date().toISOString().slice(0, 10)
-                ]);
-                
-                await gapi.client.sheets.spreadsheets.values.append({
-                    spreadsheetId: GOOGLE_SHEET_ID,
-                    range: '결제내역',
-                    valueInputOption: 'USER_ENTERED',
-                    insertDataOption: 'INSERT_ROWS',
-                    resource: { values }
-                });
-                
-                showAlert(`${window.currentMatchedDeposits.length}건의 입금이 성공적으로 처리되었습니다.`, 'success');
-                
-                // 결제 내역 새로고침
-                await loadPayments();
-                
-                // 미리보기 초기화
-                document.getElementById('depositPreviewContainer').innerHTML = '';
-                document.getElementById('depositUpload').value = '';
-                
-            } catch (e) {
-                console.error('입금 처리 오류:', e);
-                showAlert('입금 처리 중 오류가 발생했습니다: ' + e.message, 'error');
-            }
-        }
-        
-        // 수동 매칭
-        function manualMatch(unmatchedIndex, customerId) {
-            if (!customerId) return;
-            
-            const deposit = window.currentUnmatchedDeposits[unmatchedIndex];
-            const customer = customersData.find(cust => cust[0] === customerId);
-            
-            if (customer && deposit) {
-                // 매칭된 목록으로 이동
-                const matchInfo = {
-                    customerName: safeString(customer[1]),
-                    unit: safeString(customer[5]),
-                    customerId: customer[0]
-                };
-                
-                deposit.matchInfo = matchInfo;
-                window.currentMatchedDeposits.push(deposit);
-                window.currentUnmatchedDeposits.splice(unmatchedIndex, 1);
-                
-                // 화면 다시 렌더링
-                const allData = [...window.currentMatchedDeposits, ...window.currentUnmatchedDeposits];
-                renderDepositPreview(allData);
-                
-                showAlert(`${matchInfo.customerName}님과 수동 매칭되었습니다.`, 'success');
-            }
-        }
-
-        // loadAllData에서 각 데이터 로드
-        async function loadAllData() {
-            console.log('loadAllData 시작');
-            try {
-                showAlert('데이터를 불러오는 중...', 'info');
-                await Promise.all([
-                    loadCustomers(),
-                    loadBills(),
-                    loadPayments()
-                ]);
-                console.log('모든 데이터 로드 완료');
-                showAlert('데이터 로드 완료', 'success');
-            } catch (e) {
-                console.error('데이터 로드 오류:', e);
-                showAlert('데이터 로드 중 오류: ' + e.message, 'error');
-            }
-        }
-
-        // 새로고침 함수들
-        function refreshDashboard() {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            loadAllData();
-        }
-
-        function refreshCustomers() {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            loadCustomers();
-        }
-
-        function refreshBills() {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            loadBills();
-        }
-
-        function refreshPayments() {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            loadPayments();
-        }
-
-        function refreshSettings() {
-            showAlert('설정은 읽기 전용입니다.', 'info');
-        }
-
-        // 고객 추가/수정 모달 관리
-        function openCustomerModal() {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            document.getElementById('customerModalTitle').textContent = '고객 추가';
-            document.getElementById('customerForm').reset();
-            document.getElementById('customerRowIndex').value = '';
-            document.getElementById('created_date').value = new Date().toISOString().slice(0, 10);
-            document.getElementById('customerModal').classList.add('show');
-        }
-
-        function closeCustomerModal() {
-            document.getElementById('customerModal').classList.remove('show');
-        }
-
-        function openEditCustomerModal(idx) {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            const row = customersData[idx];
-            document.getElementById('customerModalTitle').textContent = '고객 수정';
-            document.getElementById('customer_name').value = safeString(row[1]);
-            document.getElementById('phone_full').value = safeString(row[2]);
-            document.getElementById('address').value = safeString(row[6]);
-            document.getElementById('created_date').value = safeString(row[11]);
-            document.getElementById('customerRowIndex').value = idx;
-            document.getElementById('customerModal').classList.add('show');
-        }
-
-        // 삭제 모달 관리
-        let deleteTargetIdx = null;
-        function openDeleteModal(idx) {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            deleteTargetIdx = idx;
-            document.getElementById('deleteModal').classList.add('show');
-        }
-
-        function closeDeleteModal() {
-            deleteTargetIdx = null;
-            document.getElementById('deleteModal').classList.remove('show');
-        }
-
-        // 시트 ID 조회 함수
-        async function getSheetIdByName(sheetName) {
-            const res = await gapi.client.sheets.spreadsheets.get({
-                spreadsheetId: GOOGLE_SHEET_ID
-            });
-            const sheet = res.result.sheets.find(s => s.properties.title === sheetName);
-            return sheet ? sheet.properties.sheetId : null;
-        }
-
-        // 고객 폼 제출 핸들러
-        async function submitCustomerForm() {
-            if (!isAuthorized) {
-                showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                return;
-            }
-            
-            const name = document.getElementById('customer_name').value.trim();
-            const phone = document.getElementById('phone_full').value.trim();
-            const address = document.getElementById('address').value.trim();
-            const created = document.getElementById('created_date').value.trim();
-            const idx = document.getElementById('customerRowIndex').value;
-            
-            if (!name || !phone || !address || !created) {
-                showAlert('모든 항목을 입력해주세요.', 'warning');
-                return;
-            }
-            
-            const phone_last4 = phone.slice(-4);
-            const updated_date = new Date().toISOString().slice(0, 10);
-            let values;
-            
-            if (idx === '') {
-                // 신규 등록: customer_id 자동 생성
-                let maxId = 0;
-                customersData.forEach(row => {
-                    const id = row[0];
-                    if (id && id.startsWith('CUST_')) {
-                        const num = parseInt(id.replace('CUST_', ''));
-                        if (!isNaN(num) && num > maxId) maxId = num;
-                    }
-                });
-                const newId = 'CUST_' + String(maxId + 1).padStart(3, '0');
-                values = [[
-                    newId, name, phone, phone_last4, '', '', address, '', '', '', '', created, updated_date
-                ]];
-            } else {
-                // 수정
-                const old = customersData[idx];
-                values = [[
-                    old[0], name, phone, phone_last4, old[4] || '', old[5] || '', address,
-                    old[7] || '', old[8] || '', old[9] || '', old[10] || '', created, updated_date
-                ]];
-            }
-            
-            try {
-                if (idx === '') {
-                    await gapi.client.sheets.spreadsheets.values.append({
-                        spreadsheetId: GOOGLE_SHEET_ID,
-                        range: '고객정보',
-                        valueInputOption: 'USER_ENTERED',
-                        insertDataOption: 'INSERT_ROWS',
-                        resource: { values }
-                    });
-                    showAlert('고객이 추가되었습니다.', 'success');
                 } else {
-                    const rowNumber = parseInt(idx) + 2;
-                    await gapi.client.sheets.spreadsheets.values.update({
-                        spreadsheetId: GOOGLE_SHEET_ID,
-                        range: `고객정보!A${rowNumber}:M${rowNumber}`,
-                        valueInputOption: 'USER_ENTERED',
-                        resource: { values }
-                    });
-                    showAlert('고객 정보가 수정되었습니다.', 'success');
+                    showAlert('CSV 파서가 로드되지 않았습니다.', 'error');
                 }
-                closeCustomerModal();
+            } else {
+                showAlert('지원하지 않는 파일 형식입니다. CSV 또는 Excel 파일을 업로드해주세요.', 'error');
+            }
+        } catch (error) {
+            console.error('파일 처리 오류:', error);
+            showAlert('파일 처리 중 오류가 발생했습니다: ' + error.message, 'error');
+        }
+    };
+    
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        reader.readAsArrayBuffer(file);
+    } else {
+        reader.readAsText(file, 'UTF-8');
+    }
+}
+
+function renderDepositPreview(data) {
+    const matchedDeposits = [];
+    const unmatchedDeposits = [];
+    
+    data.forEach((row, index) => {
+        const content = safeString(row['내용'] || row['적요'] || row['거래내용'] || '');
+        const amount = String(row['거래금액'] || row['입금액'] || row['금액'] || '').replace(/[^\d]/g, '');
+        const transactionType = safeString(row['구분'] || row['입출금구분'] || '');
+        const date = safeString(row['거래일시'] || row['거래일'] || row['날짜'] || '');
+        
+        let matchInfo = null;
+        
+        if (transactionType.includes('입금') || content.includes('입금')) {
+            customersData.forEach(cust => {
+                const name = safeString(cust[1]);
+                const unit = safeString(cust[5]);
+                const fee = String(cust[8] || '').replace(/[^\d]/g, '');
+                
+                if ((content.includes(name) || content.includes(unit)) && amount === fee) {
+                    matchInfo = {
+                        customerName: name,
+                        unit: unit,
+                        amount: amount,
+                        fee: fee,
+                        customerId: cust[0]
+                    };
+                }
+            });
+            
+            if (matchInfo) {
+                matchedDeposits.push({ ...row, index, matchInfo, date, amount, content });
+            } else {
+                unmatchedDeposits.push({ ...row, index, date, amount, content });
+            }
+        }
+    });
+    
+    let html = '<div class="card"><h3>입금내역 미리보기</h3>';
+    html += `<div style="display: flex; gap: 15px; margin-bottom: 15px;">`;
+    html += `<div style="padding: 10px; background: #d4edda; border-radius: 8px; flex: 1;">`;
+    html += `<strong style="color: #155724;">✅ 자동 매칭됨: ${matchedDeposits.length}건</strong>`;
+    html += `</div>`;
+    html += `<div style="padding: 10px; background: #fff3cd; border-radius: 8px; flex: 1;">`;
+    html += `<strong style="color: #856404;">⚠️ 매칭 안됨: ${unmatchedDeposits.length}건</strong>`;
+    html += `</div>`;
+    html += `</div>`;
+    
+    if (matchedDeposits.length > 0) {
+        html += '<button class="btn btn-success" onclick="processMatchedDeposits()" style="margin-bottom: 20px;">매칭된 입금 처리하기</button>';
+        
+        html += '<h4 style="color: #155724; margin-bottom: 15px;">✅ 자동 매칭된 입금 내역</h4>';
+        html += '<table class="data-table" style="margin-bottom: 25px;"><thead><tr>';
+        html += '<th>거래일시</th><th>입금액</th><th>고객명</th><th>호수</th><th>거래내용</th><th>상태</th>';
+        html += '</tr></thead><tbody>';
+        
+        matchedDeposits.forEach(deposit => {
+            html += '<tr style="background: #d4edda;">';
+            html += `<td>${deposit.date}</td>`;
+            html += `<td>${parseInt(deposit.amount).toLocaleString()}원</td>`;
+            html += `<td><strong>${deposit.matchInfo.customerName}</strong></td>`;
+            html += `<td>${deposit.matchInfo.unit}</td>`;
+            html += `<td>${deposit.content}</td>`;
+            html += `<td><span style="color: #155724; font-weight: 600;">매칭됨</span></td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+    }
+    
+    if (unmatchedDeposits.length > 0) {
+        html += '<h4 style="color: #856404; margin-bottom: 15px;">⚠️ 매칭되지 않은 입금 내역</h4>';
+        html += '<table class="data-table"><thead><tr>';
+        html += '<th>거래일시</th><th>입금액</th><th>거래내용</th><th>수동매칭</th>';
+        html += '</tr></thead><tbody>';
+        
+        unmatchedDeposits.forEach((deposit, idx) => {
+            html += '<tr style="background: #fff3cd;">';
+            html += `<td>${deposit.date}</td>`;
+            html += `<td>${parseInt(deposit.amount).toLocaleString()}원</td>`;
+            html += `<td>${deposit.content}</td>`;
+            html += `<td>`;
+            html += `<select onchange="manualMatch(${idx}, this.value)" style="padding: 5px; border-radius: 4px;">`;
+            html += `<option value="">고객 선택</option>`;
+            customersData.forEach(cust => {
+                html += `<option value="${cust[0]}">${safeString(cust[1])} (${safeString(cust[5])})</option>`;
+            });
+            html += `</select>`;
+            html += `</td>`;
+            html += '</tr>';
+        });
+        html += '</tbody></table>';
+    }
+    
+    html += '</div>';
+    
+    window.currentMatchedDeposits = matchedDeposits;
+    window.currentUnmatchedDeposits = unmatchedDeposits;
+    
+    document.getElementById('depositPreviewContainer').innerHTML = html;
+}
+
+async function processMatchedDeposits() {
+    if (!window.currentMatchedDeposits || window.currentMatchedDeposits.length === 0) {
+        showAlert('처리할 매칭된 입금이 없습니다.', 'warning');
+        return;
+    }
+    
+    try {
+        showAlert('입금 내역을 처리하는 중...', 'info');
+        
+        const values = window.currentMatchedDeposits.map(deposit => [
+            deposit.matchInfo.customerName,
+            deposit.date,
+            parseInt(deposit.amount).toLocaleString() + '원',
+            '계좌이체',
+            '자동매칭',
+            deposit.matchInfo.customerId,
+            new Date().toISOString().slice(0, 10)
+        ]);
+        
+        await gapi.client.sheets.spreadsheets.values.append({
+            spreadsheetId: GOOGLE_SHEET_ID,
+            range: '결제내역!A:G', // 정확한 시트 이름 사용
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            resource: { values }
+        });
+        
+        showAlert(`${window.currentMatchedDeposits.length}건의 입금이 성공적으로 처리되었습니다.`, 'success');
+        
+        await loadPayments();
+        document.getElementById('depositPreviewContainer').innerHTML = '';
+        document.getElementById('depositUpload').value = '';
+        
+    } catch (e) {
+        console.error('입금 처리 오류:', e);
+        showAlert('입금 처리 중 오류가 발생했습니다: ' + e.message, 'error');
+    }
+}
+
+function manualMatch(unmatchedIndex, customerId) {
+    if (!customerId) return;
+    
+    const deposit = window.currentUnmatchedDeposits[unmatchedIndex];
+    const customer = customersData.find(cust => cust[0] === customerId);
+    
+    if (customer && deposit) {
+        const matchInfo = {
+            customerName: safeString(customer[1]),
+            unit: safeString(customer[5]),
+            customerId: customer[0]
+        };
+        
+        deposit.matchInfo = matchInfo;
+        window.currentMatchedDeposits.push(deposit);
+        window.currentUnmatchedDeposits.splice(unmatchedIndex, 1);
+        
+        const allData = [...window.currentMatchedDeposits, ...window.currentUnmatchedDeposits];
+        renderDepositPreview(allData);
+        
+        showAlert(`${matchInfo.customerName}님과 수동 매칭되었습니다.`, 'success');
+    }
+}
+
+// ========== 페이지 초기화 ==========
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('📋 페이지 로드 완료');
+    updateConnectionStatus('시스템 준비 중...', false);
+    setSigninStatus(false);
+    
+    // Google API 스크립트 동적 로드
+    loadGoogleAPIs();
+    
+    // 삭제 버튼 이벤트 등록
+    document.getElementById('confirmDeleteBtn').onclick = async function() {
+        if (!isAuthorized) {
+            showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
+            return;
+        }
+        
+        if (deleteTargetIdx !== null) {
+            try {
+                const sheetId = await getSheetIdByName('고객정보'); // 정확한 시트 이름 사용
+                if (sheetId === null) throw new Error('시트 ID를 찾을 수 없습니다.');
+                const rowIndex = parseInt(deleteTargetIdx) + 1;
+                await gapi.client.sheets.spreadsheets.batchUpdate({
+                    spreadsheetId: GOOGLE_SHEET_ID,
+                    resource: {
+                        requests: [{
+                            deleteDimension: {
+                                range: {
+                                    sheetId: sheetId,
+                                    dimension: 'ROWS',
+                                    startIndex: rowIndex + 1,
+                                    endIndex: rowIndex + 2
+                                }
+                            }
+                        }]
+                    }
+                });
+                showAlert('고객이 삭제되었습니다.', 'success');
                 await loadCustomers();
             } catch (e) {
                 console.error(e);
-                showAlert('고객 정보 저장 실패: ' + e.message, 'error');
+                showAlert('고객 삭제 실패: ' + e.message, 'error');
             }
         }
+        closeDeleteModal();
+    };
+});
 
-        // 삭제 버튼 핸들러
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('confirmDeleteBtn').onclick = async function() {
-                if (!isAuthorized) {
-                    showAlert('먼저 Google 계정으로 로그인해주세요.', 'warning');
-                    return;
-                }
-                
-                if (deleteTargetIdx !== null) {
-                    try {
-                        const sheetId = await getSheetIdByName('고객정보');
-                        if (sheetId === null) throw new Error('시트 ID를 찾을 수 없습니다.');
-                        const rowIndex = parseInt(deleteTargetIdx) + 1;
-                        await gapi.client.sheets.spreadsheets.batchUpdate({
-                            spreadsheetId: GOOGLE_SHEET_ID,
-                            resource: {
-                                requests: [{
-                                    deleteDimension: {
-                                        range: {
-                                            sheetId: sheetId,
-                                            dimension: 'ROWS',
-                                            startIndex: rowIndex + 1,
-                                            endIndex: rowIndex + 2
-                                        }
-                                    }
-                                }]
-                            }
-                        });
-                        showAlert('고객이 삭제되었습니다.', 'success');
-                        await loadCustomers();
-                    } catch (e) {
-                        console.error(e);
-                        showAlert('고객 삭제 실패: ' + e.message, 'error');
-                    }
-                }
-                closeDeleteModal();
-            };
-        });
+// Google API 동적 로드 함수
+function loadGoogleAPIs() {
+    console.log('🔄 Google API 로드 시작...');
+    
+    // 기존 스크립트가 있다면 제거
+    const existingGapi = document.querySelector('script[src*="apis.google.com"]');
+    const existingGis = document.querySelector('script[src*="accounts.google.com/gsi"]');
+    if (existingGapi) existingGapi.remove();
+    if (existingGis) existingGis.remove();
+    
+    // GAPI 스크립트 로드
+    const gapiScript = document.createElement('script');
+    gapiScript.src = 'https://apis.google.com/js/api.js';
+    gapiScript.async = true;
+    gapiScript.defer = true;
+    gapiScript.onload = function() {
+        console.log('✅ GAPI 스크립트 로드 성공');
+        gapiLoaded();
+    };
+    gapiScript.onerror = function() {
+        console.error('❌ GAPI 스크립트 로드 실패');
+        showAlert('Google API 로드에 실패했습니다. 네트워크를 확인해주세요.', 'error');
+        updateConnectionStatus('API 로드 실패', false);
+    };
+    
+    // GIS 스크립트 로드
+    const gisScript = document.createElement('script');
+    gisScript.src = 'https://accounts.google.com/gsi/client';
+    gisScript.async = true;
+    gisScript.defer = true;
+    gisScript.onload = function() {
+        console.log('✅ GIS 스크립트 로드 성공');
+        gisLoaded();
+    };
+    gisScript.onerror = function() {
+        console.error('❌ GIS 스크립트 로드 실패');
+        showAlert('Google 인증 시스템 로드에 실패했습니다. 네트워크를 확인해주세요.', 'error');
+        updateConnectionStatus('인증 시스템 로드 실패', false);
+    };
+    
+    // 스크립트를 head에 추가
+    document.head.appendChild(gapiScript);
+    
+    // GAPI가 로드된 후 GIS 로드 (순서 보장)
+    gapiScript.addEventListener('load', function() {
+        setTimeout(() => {
+            document.head.appendChild(gisScript);
+        }, 500); // 0.5초 대기 후 GIS 로드
+    });
+}
+</script>
 
-        // 전역 함수 등록
-        window.showTab = showTab;
-        window.handleAuthClick = handleAuthClick;
-        window.handleSignoutClick = handleSignoutClick;
-        window.refreshDashboard = refreshDashboard;
-        window.refreshCustomers = refreshCustomers;
-        window.refreshBills = refreshBills;
-        window.refreshPayments = refreshPayments;
-        window.refreshSettings = refreshSettings;
-        window.openCustomerModal = openCustomerModal;
-        window.closeCustomerModal = closeCustomerModal;
-        window.openEditCustomerModal = openEditCustomerModal;
-        window.openDeleteModal = openDeleteModal;
-        window.closeDeleteModal = closeDeleteModal;
-        window.submitCustomerForm = submitCustomerForm;
-        window.handleDepositUpload = handleDepositUpload;
-        window.processMatchedDeposits = processMatchedDeposits;
-        window.manualMatch = manualMatch;
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
-        // 페이지 로드 시 초기화
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('페이지 로드 완료');
-            updateConnectionStatus('시스템 준비 중...', false);
-            
-            // 초기 상태에서 로그인되지 않은 상태의 UI 렌더링
-            setSigninStatus(false);
-        });
-    </script>
 </body>
 </html>

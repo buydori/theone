@@ -829,11 +829,29 @@ async function submitCustomerForm() {
 }
 
 async function getSheetIdByName(sheetName) {
-    const res = await gapi.client.sheets.spreadsheets.get({
-        spreadsheetId: GOOGLE_SHEET_ID
-    });
-    const sheet = res.result.sheets.find(s => s.properties.title === sheetName);
-    return sheet ? sheet.properties.sheetId : null;
+    try {
+        console.log('🔍 시트 ID 찾는 중... 시트명:', sheetName);
+        const res = await gapi.client.sheets.spreadsheets.get({
+            spreadsheetId: GOOGLE_SHEET_ID
+        });
+        
+        console.log('📋 전체 시트 목록:');
+        res.result.sheets.forEach(sheet => {
+            console.log(`- 시트명: "${sheet.properties.title}" (ID: ${sheet.properties.sheetId})`);
+        });
+        
+        const sheet = res.result.sheets.find(s => s.properties.title === sheetName);
+        if (sheet) {
+            console.log(`✅ 시트 "${sheetName}" 찾음, ID: ${sheet.properties.sheetId}`);
+            return sheet.properties.sheetId;
+        } else {
+            console.error(`❌ 시트 "${sheetName}"를 찾을 수 없음`);
+            return null;
+        }
+    } catch (e) {
+        console.error('❌ 시트 정보 조회 실패:', e);
+        return null;
+    }
 }
 
 // ========== 엑셀 업로드 및 처리 ==========
@@ -1090,9 +1108,39 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (deleteTargetIdx !== null) {
             try {
-                const sheetId = await getSheetIdByName('고객정보'); // 정확한 시트 이름 사용
-                if (sheetId === null) throw new Error('시트 ID를 찾을 수 없습니다.');
-                const rowIndex = parseInt(deleteTargetIdx) + 1;
+                console.log('🗑️ 고객 삭제 시작... 인덱스:', deleteTargetIdx);
+                
+                // 먼저 실제 시트 목록을 확인
+                const response = await gapi.client.sheets.spreadsheets.get({
+                    spreadsheetId: GOOGLE_SHEET_ID
+                });
+                
+                console.log('📋 삭제용 시트 목록 확인:');
+                response.result.sheets.forEach(sheet => {
+                    console.log(`- "${sheet.properties.title}" (ID: ${sheet.properties.sheetId})`);
+                });
+                
+                // 고객정보 시트 찾기 (여러 가능성 시도)
+                let targetSheet = null;
+                const possibleNames = ['고객정보', '고객정보A2:Z', 'Sheet1', '시트1'];
+                
+                for (const name of possibleNames) {
+                    targetSheet = response.result.sheets.find(s => s.properties.title === name);
+                    if (targetSheet) {
+                        console.log(`✅ 시트 찾음: "${name}" (ID: ${targetSheet.properties.sheetId})`);
+                        break;
+                    }
+                }
+                
+                if (!targetSheet) {
+                    throw new Error('고객정보 시트를 찾을 수 없습니다. 시트 이름을 확인해주세요.');
+                }
+                
+                const sheetId = targetSheet.properties.sheetId;
+                const rowIndex = parseInt(deleteTargetIdx) + 2; // A2부터 시작하므로 +2
+                
+                console.log(`🗑️ 삭제 실행: 시트ID=${sheetId}, 행=${rowIndex}`);
+                
                 await gapi.client.sheets.spreadsheets.batchUpdate({
                     spreadsheetId: GOOGLE_SHEET_ID,
                     resource: {
@@ -1101,17 +1149,18 @@ document.addEventListener('DOMContentLoaded', function() {
                                 range: {
                                     sheetId: sheetId,
                                     dimension: 'ROWS',
-                                    startIndex: rowIndex + 1,
-                                    endIndex: rowIndex + 2
+                                    startIndex: rowIndex - 1, // 0-based index
+                                    endIndex: rowIndex
                                 }
                             }
                         }]
                     }
                 });
+                
                 showAlert('고객이 삭제되었습니다.', 'success');
                 await loadCustomers();
             } catch (e) {
-                console.error(e);
+                console.error('❌ 고객 삭제 실패:', e);
                 showAlert('고객 삭제 실패: ' + e.message, 'error');
             }
         }

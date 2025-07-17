@@ -385,7 +385,7 @@
 <body>
     <div class="header">
         <div class="header-content">
-            <h1>🏢 더원주택관리 - 관리자1.0.4</h1>
+            <h1>🏢 더원주택관리 - 관리자3.0.0 (비즈니스 알림톡)</h1>
             <div class="user-info">
                 <span>관리자님 환영합니다</span>
                 <button class="logout-btn">로그아웃</button>
@@ -496,7 +496,7 @@
                     <textarea id="messageContent" name="messageContent" placeholder="메시지 내용을 입력하세요..."></textarea>
                 </div>
                 
-                <button type="submit" class="send-btn" id="sendBtn">📨 메시지 발송</button>
+                <button type="submit" class="send-btn" id="sendBtn">📨 채널 확인 중...</button>
             </form>
         </div>
     </div>
@@ -515,54 +515,208 @@
         let allBuildings = [];
         let monthlyFees = [];
         let targetCustomersList = [];
+        let businessChannelStatus = 'checking'; // checking, available, unavailable
         
-        // 카카오 API 설정
-        const KAKAO_CONFIG = {
-            REST_API_KEY: 'd6550649f97e48cc6a3232236a4a2153',
-            ADMIN_KEY: 'f69c2cf1b13c41138b1db3304c28db85',
-            JAVASCRIPT_KEY: 'ecfecee0ccad5db8501127246607bba6'
-        };
+        // 카카오 SDK 초기화 및 로그인 상태 확인
+        function initKakao() {
+            if (typeof Kakao !== 'undefined') {
+                if (!Kakao.isInitialized()) {
+                    Kakao.init(KAKAO_CONFIG.JAVASCRIPT_KEY);
+                    console.log('✅ 카카오 SDK 초기화 완료');
+                }
+                
+                // 기존 로그인 상태 확인
+                Kakao.Auth.getStatusInfo()
+                    .then(function(statusInfo) {
+                        if (statusInfo.status === 'connected') {
+                            console.log('✅ 기존 로그인 상태 확인됨');
+                            kakaoAccessToken = Kakao.Auth.getAccessToken();
+                            updateAuthStatus(true);
+                        } else {
+                            console.log('ℹ️ 로그인 필요');
+                            updateAuthStatus(false);
+                        }
+                    })
+                    .catch(function(error) {
+                        console.log('ℹ️ 로그인 상태 확인 실패, 로그인 필요');
+                        updateAuthStatus(false);
+                    });
+            } else {
+                console.error('❌ 카카오 SDK 로드 실패');
+                setTimeout(initKakao, 1000); // 1초 후 재시도
+            }
+        }
         
-        // 모의 데이터 (실제로는 구글 시트에서 가져옴)
-        const mockData = {
-            customers: [
-                ['C001', '김철수', '010-1234-5678', 'kim@email.com', '파인타워', '101호', '2020-01-15', '거주중'],
-                ['C002', '이영희', '010-2345-6789', 'lee@email.com', '파인타워', '102호', '2020-02-01', '거주중'],
-                ['C003', '박민수', '010-3456-7890', 'park@email.com', '그린빌라', '201호', '2019-12-10', '거주중'],
-                ['C004', '최수연', '010-4567-8901', 'choi@email.com', '그린빌라', '202호', '2020-03-15', '거주중'],
-                ['C005', '장동건', '010-5678-9012', 'jang@email.com', '블루하우스', '301호', '2021-01-01', '거주중'],
-                ['C006', '송혜교', '010-6789-0123', 'song@email.com', '블루하우스', '302호', '2021-02-15', '거주중']
-            ],
-            monthlyFees: [
-                ['F001', 'C001', '2024-07', '2024-07-01', '2024-07-25', 150000, 150000, '완납'],
-                ['F002', 'C002', '2024-07', '2024-07-01', '2024-07-25', 150000, 0, '미납'],
-                ['F003', 'C003', '2024-07', '2024-07-01', '2024-07-25', 120000, 120000, '완납'],
-                ['F004', 'C004', '2024-07', '2024-07-01', '2024-07-25', 120000, 0, '미납'],
-                ['F005', 'C005', '2024-07', '2024-07-01', '2024-07-25', 180000, 0, '미납'],
-                ['F006', 'C006', '2024-07', '2024-07-01', '2024-07-25', 180000, 180000, '완납']
-            ]
-        };
+        // 구글 스프레드시트 설정
+        const SPREADSHEET_ID = '1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg';
+        const CUSTOMERS_SHEET_GID = '0'; // 첫 번째 시트
+        
+        // CSV URL 생성
+        const CUSTOMERS_CSV_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/export?format=csv&gid=${CUSTOMERS_SHEET_GID}`;
+        
+        // 모의 관리비 데이터 (실제 시트가 있다면 교체 필요)
+        const mockMonthlyFees = [
+            ['1', '2024-07', '2024-07-01', '2024-07-25', 150000, 150000, '완납'],
+            ['2', '2024-07', '2024-07-01', '2024-07-25', 150000, 0, '미납'],
+            ['3', '2024-07', '2024-07-01', '2024-07-25', 120000, 120000, '완납'],
+            ['4', '2024-07', '2024-07-01', '2024-07-25', 120000, 0, '미납'],
+            ['5', '2024-07', '2024-07-01', '2024-07-25', 180000, 0, '미납'],
+            ['6', '2024-07', '2024-07-01', '2024-07-25', 180000, 180000, '완납'],
+            ['7', '2024-07', '2024-07-01', '2024-07-25', 130000, 0, '미납'],
+            ['8', '2024-07', '2024-07-01', '2024-07-25', 140000, 140000, '완납'],
+            ['9', '2024-07', '2024-07-01', '2024-07-25', 160000, 0, '미납'],
+            ['10', '2024-07', '2024-07-01', '2024-07-25', 170000, 170000, '완납']
+        ];
         
         // 페이지 로드 시 실행
         document.addEventListener('DOMContentLoaded', async function() {
             await loadDashboardData();
             setupMessageForm();
             setupModal();
+            
+            // 카카오 SDK 로드 후 초기화
+            setTimeout(() => {
+                initKakao();
+                setupKakaoAuth();
+            }, 500);
         });
+        
+        // 카카오 인증 설정
+        function setupKakaoAuth() {
+            // 초기 UI 설정
+            updateAuthStatus(false);
+        }
+        
+        // 카카오 로그인
+        function authenticateKakao() {
+            if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+                alert('카카오 SDK가 아직 로드되지 않았습니다. 잠시 후 다시 시도해주세요.');
+                return;
+            }
+            
+            console.log('🔐 카카오 로그인 시도...');
+            
+            Kakao.Auth.login({
+                success: function(response) {
+                    console.log('✅ 카카오 로그인 성공:', response);
+                    kakaoAccessToken = response.access_token;
+                    
+                    // 사용자 정보 가져오기
+                    Kakao.API.request({
+                        url: '/v2/user/me',
+                        success: function(userResponse) {
+                            console.log('✅ 사용자 정보:', userResponse);
+                            const nickname = userResponse.kakao_account?.profile?.nickname || '사용자';
+                            alert(`안녕하세요 ${nickname}님! 카카오 로그인이 완료되었습니다.`);
+                            updateAuthStatus(true, nickname);
+                        },
+                        fail: function(error) {
+                            console.error('❌ 사용자 정보 가져오기 실패:', error);
+                            alert('카카오 로그인은 성공했지만 사용자 정보를 가져올 수 없습니다.');
+                            updateAuthStatus(true);
+                        }
+                    });
+                },
+                fail: function(error) {
+                    console.error('❌ 카카오 로그인 실패:', error);
+                    alert('카카오 로그인에 실패했습니다. 다시 시도해주세요.');
+                    updateAuthStatus(false);
+                },
+                always: function(authObj) {
+                    console.log('카카오 로그인 프로세스 완료:', authObj);
+                }
+            });
+        }
+        
+        // 카카오 로그아웃
+        function logoutKakao() {
+            if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+                alert('카카오 SDK가 로드되지 않았습니다.');
+                return;
+            }
+            
+            if (!kakaoAccessToken) {
+                alert('현재 로그인 상태가 아닙니다.');
+                updateAuthStatus(false);
+                return;
+            }
+            
+            console.log('🔓 카카오 로그아웃 시도...');
+            
+            Kakao.Auth.logout(function() {
+                console.log('✅ 카카오 로그아웃 완료');
+                kakaoAccessToken = null;
+                updateAuthStatus(false);
+                alert('로그아웃되었습니다.');
+            });
+        }
+        
+        // 인증 상태 업데이트
+        function updateAuthStatus(isAuthenticated, nickname = null) {
+            const authSection = document.getElementById('authSection');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            if (!authSection || !sendBtn) {
+                console.log('UI 요소를 찾을 수 없습니다. 잠시 후 다시 시도합니다.');
+                setTimeout(() => updateAuthStatus(isAuthenticated, nickname), 500);
+                return;
+            }
+            
+            if (isAuthenticated) {
+                const userText = nickname ? `${nickname}님` : '사용자님';
+                authSection.innerHTML = `
+                    <div class="success-message">
+                        ✅ 카카오 인증 완료 - ${userText} 환영합니다!<br>
+                        <small>테스트 메시지는 본인 카카오톡으로만 발송됩니다.</small>
+                        <button onclick="logoutKakao()" style="margin-left: 10px; padding: 5px 10px; background: #ff6b6b; color: white; border: none; border-radius: 3px; cursor: pointer;">
+                            🔓 로그아웃
+                        </button>
+                    </div>
+                `;
+                sendBtn.textContent = '📨 테스트 메시지 발송 (나에게만)';
+                sendBtn.disabled = false;
+                sendBtn.style.background = '#fee500';
+                sendBtn.style.color = '#3c1e1e';
+            } else {
+                authSection.innerHTML = `
+                    <div style="text-align: center; padding: 15px; background: #f8f9fa; border-radius: 8px; border: 1px solid #dee2e6;">
+                        <p style="margin-bottom: 10px; color: #666;">카카오 로그인 후 테스트 메시지를 발송할 수 있습니다.</p>
+                        <button onclick="authenticateKakao()" style="background: #fee500; color: #3c1e1e; border: none; padding: 12px 20px; border-radius: 5px; font-weight: 600; cursor: pointer; font-size: 14px;">
+                            🔐 카카오 로그인
+                        </button>
+                    </div>
+                `;
+                sendBtn.textContent = '📨 로그인 후 이용 가능';
+                sendBtn.disabled = true;
+                sendBtn.style.background = '#ccc';
+                sendBtn.style.color = '#666';
+            }
+        }
         
         // 대시보드 데이터 로드
         async function loadDashboardData() {
             try {
-                // 실제 환경에서는 구글 시트 API 사용
-                // const [buildings, customers, monthlyFees] = await Promise.all([
-                //     fetchSheetData('buildings'),
-                //     fetchSheetData('customers'),
-                //     fetchSheetData('monthly_fees')
-                // ]);
+                // 실제 구글 스프레드시트에서 고객 데이터 가져오기
+                const customersData = await fetchGoogleSheetData(CUSTOMERS_CSV_URL);
                 
-                // 모의 데이터 사용
-                allCustomers = mockData.customers;
-                monthlyFees = mockData.monthlyFees;
+                if (customersData && customersData.length > 0) {
+                    // 헤더 제거하고 실제 데이터만 사용
+                    allCustomers = customersData.slice(1).map(row => [
+                        row[0], // customer_id
+                        row[1], // name
+                        row[2], // phone
+                        row[2], // email (phone으로 대체)
+                        row[4], // building_name
+                        row[5], // room_number
+                        row[6], // move_in_date
+                        row[8] || '거주중' // status
+                    ]);
+                } else {
+                    throw new Error('고객 데이터를 불러올 수 없습니다.');
+                }
+                
+                // 관리비 데이터는 모의 데이터 사용 (실제 시트가 있다면 교체)
+                monthlyFees = mockMonthlyFees;
                 
                 // 건물 목록 추출
                 allBuildings = [...new Set(allCustomers.map(customer => customer[4]))];
@@ -571,9 +725,57 @@
                 updateRecentActivities();
                 updateBuildingOptions();
                 
+                console.log(`✅ 데이터 로드 완료: 고객 ${allCustomers.length}명, 건물 ${allBuildings.length}개`);
+                
             } catch (error) {
                 console.error('대시보드 데이터 로드 오류:', error);
+                // 오류 발생 시 사용자에게 알림
+                alert('데이터를 불러오는 중 오류가 발생했습니다. 스프레드시트가 공개 상태인지 확인해주세요.');
             }
+        }
+        
+        // 구글 시트 데이터 가져오기
+        async function fetchGoogleSheetData(csvUrl) {
+            try {
+                const response = await fetch(csvUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const csvText = await response.text();
+                return parseCSV(csvText);
+                
+            } catch (error) {
+                console.error('구글 시트 데이터 가져오기 오류:', error);
+                throw error;
+            }
+        }
+        
+        // CSV 파싱 함수
+        function parseCSV(csvText) {
+            const lines = csvText.trim().split('\n');
+            return lines.map(line => {
+                // 간단한 CSV 파싱 (쉼표로 구분, 따옴표 처리)
+                const result = [];
+                let current = '';
+                let inQuotes = false;
+                
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        result.push(current.trim());
+                        current = '';
+                    } else {
+                        current += char;
+                    }
+                }
+                
+                result.push(current.trim());
+                return result;
+            });
         }
         
         // 통계 업데이트
@@ -585,17 +787,17 @@
             const activeCustomers = allCustomers.filter(customer => customer[7] === '거주중');
             document.getElementById('totalCustomers').textContent = activeCustomers.length;
             
-            // 현재월 납부 현황
-            const paidCount = monthlyFees.filter(fee => fee[7] === '완납').length;
-            const unpaidCount = monthlyFees.filter(fee => fee[7] === '미납').length;
+            // 현재월 납부 현황 (관리비 데이터 구조: [customer_id, month, bill_date, due_date, amount, paid_amount, status])
+            const paidCount = monthlyFees.filter(fee => fee[6] === '완납').length;
+            const unpaidCount = monthlyFees.filter(fee => fee[6] === '미납').length;
             
             document.getElementById('paidCustomers').textContent = paidCount;
             document.getElementById('unpaidCustomers').textContent = unpaidCount;
             
             // 총 미납 금액
             const totalUnpaid = monthlyFees
-                .filter(fee => fee[7] === '미납')
-                .reduce((sum, fee) => sum + (parseInt(fee[5]) || 0), 0);
+                .filter(fee => fee[6] === '미납')
+                .reduce((sum, fee) => sum + (parseInt(fee[4]) || 0), 0);
             
             document.getElementById('totalUnpaidAmount').textContent = formatCurrency(totalUnpaid);
         }
@@ -605,14 +807,14 @@
             const activitiesContainer = document.getElementById('recentActivities');
             
             const recentFees = monthlyFees.map(feeRow => {
-                const customer = allCustomers.find(c => c[0] === feeRow[1]);
+                const customer = allCustomers.find(c => c[0] === feeRow[0]); // customer_id로 매칭
                 return {
                     customerName: customer ? customer[1] : '알 수 없음',
                     building: customer ? customer[4] : '알 수 없음',
                     room: customer ? customer[5] : '알 수 없음',
-                    amount: parseInt(feeRow[5]) || 0,
-                    status: feeRow[7] || '미납',
-                    month: feeRow[2]
+                    amount: parseInt(feeRow[4]) || 0, // amount 컬럼
+                    status: feeRow[6] || '미납', // status 컬럼
+                    month: feeRow[1] || '2024-07' // month 컬럼
                 };
             });
             
@@ -686,7 +888,9 @@
 
 {content}
 
-더원주택관리 드림`
+더원주택관리 드림`,
+                
+                custom: ''
             };
             
             // 메시지 유형 변경 시
@@ -729,19 +933,20 @@
             
             switch (targetType) {
                 case 'all_unpaid':
+                    // 미납 고객 ID 찾기
                     const unpaidCustomerIds = monthlyFees
-                        .filter(fee => fee[7] === '미납')
-                        .map(fee => fee[1]);
+                        .filter(fee => fee[6] === '미납')
+                        .map(fee => fee[0]);
                     targets = allCustomers.filter(customer => 
                         unpaidCustomerIds.includes(customer[0]) && customer[7] === '거주중'
                     );
                     break;
                     
                 case 'overdue':
-                    // 연체 로직 (예: 납부일 지난 미납 고객)
+                    // 연체 고객 (미납과 동일하게 처리)
                     const overdueCustomerIds = monthlyFees
-                        .filter(fee => fee[7] === '미납')
-                        .map(fee => fee[1]);
+                        .filter(fee => fee[6] === '미납')
+                        .map(fee => fee[0]);
                     targets = allCustomers.filter(customer => 
                         overdueCustomerIds.includes(customer[0]) && customer[7] === '거주중'
                     );
@@ -810,60 +1015,172 @@
                 return;
             }
             
+            // 카카오 인증 상태 재확인
+            if (!kakaoAccessToken) {
+                alert('카카오 로그인이 필요합니다. 먼저 로그인해주세요.');
+                updateAuthStatus(false);
+                return;
+            }
+            
+            // 카카오 SDK 상태 확인
+            if (typeof Kakao === 'undefined' || !Kakao.isInitialized()) {
+                alert('카카오 SDK가 준비되지 않았습니다. 페이지를 새로고침해주세요.');
+                return;
+            }
+            
             try {
-                // 전화번호 유효성 검사
-                validateTargetCustomers(targetCustomersList);
-                
                 // 발송 확인
-                const confirmMessage = `${targetCustomersList.length}명에게 메시지를 발송하시겠습니까?\n\n` +
-                    `예상 비용: ${(targetCustomersList.length * 15).toLocaleString()}원 (건당 15원 기준)`;
+                const confirmMessage = `⚠️ 테스트 메시지 발송 안내\n\n` +
+                    `• 대상: ${targetCustomersList.length}명의 고객 정보로 생성된 샘플 메시지\n` +
+                    `• 실제 발송: 본인 카카오톡으로만 발송됩니다\n` +
+                    `• 목적: 메시지 내용 및 개인화 테스트\n\n` +
+                    `테스트 메시지를 발송하시겠습니까?`;
                 
                 if (!confirm(confirmMessage)) {
                     return;
                 }
                 
-                // 발송 버튼 비활성화
+                // 발송 버튼 상태 변경
+                const originalText = sendBtn.textContent;
                 sendBtn.disabled = true;
-                sendBtn.textContent = '📤 발송 중... (0/' + targetCustomersList.length + ')';
+                sendBtn.textContent = '📤 메시지 발송 중...';
+                sendBtn.style.background = '#ccc';
                 
-                // 진행률 업데이트를 위한 카운터
-                let completed = 0;
-                const updateProgress = () => {
-                    completed++;
-                    sendBtn.textContent = `📤 발송 중... (${completed}/${targetCustomersList.length})`;
-                };
-                
-                // 실제 메시지 발송
-                const results = await sendKakaoMessagesWithProgress(targetCustomersList, messageContent, messageType, updateProgress);
+                // 실제 카카오 메시지 발송
+                const results = await sendRealKakaoMessage(messageContent, targetCustomersList, messageType);
                 showResultModal(results);
                 
-                // 성공 시 폼 초기화
+                // 성공 시 대상 목록 새로고침
                 if (results.success.length > 0) {
-                    document.getElementById('messageContent').value = '';
-                    updateTargetCustomers(); // 대상 목록 새로고침
+                    updateTargetCustomers();
                 }
                 
             } catch (error) {
                 console.error('메시지 발송 오류:', error);
-                alert(`발송 오류: ${error.message}`);
+                alert(`발송 오류: ${error.message}\n\n다시 로그인해주세요.`);
+                
+                // 오류 시 로그아웃 처리
+                kakaoAccessToken = null;
+                updateAuthStatus(false);
+                
             } finally {
                 // 발송 버튼 복원
                 sendBtn.disabled = false;
-                sendBtn.textContent = '📨 메시지 발송';
+                sendBtn.textContent = kakaoAccessToken 
+                    ? '📨 테스트 메시지 발송 (나에게만)' 
+                    : '📨 로그인 후 이용 가능';
+                sendBtn.style.background = kakaoAccessToken ? '#fee500' : '#ccc';
+                sendBtn.style.color = kakaoAccessToken ? '#3c1e1e' : '#666';
             }
         });
         
-        // 진행률과 함께 메시지 발송
+        // 실제 카카오 메시지 발송 (테스트용 - 나에게만)
+        async function sendRealKakaoMessage(messageTemplate, targetCustomers, messageType) {
+            const results = {
+                success: [],
+                failure: [],
+                total: 1, // 나에게만 보내므로 1개
+                isRealSend: true
+            };
+            
+            try {
+                // 첫 번째 고객 정보로 메시지 개인화 (샘플용)
+                const sampleCustomer = targetCustomers[0];
+                const personalizedMessage = personalizeMessage(messageTemplate, sampleCustomer, messageType);
+                
+                // 메시지 내용 구성
+                const fullMessage = `📢 [더원주택관리 테스트 발송]\n\n` +
+                    `대상 고객 수: ${targetCustomers.length}명\n` +
+                    `샘플 고객: ${sampleCustomer[1]} (${sampleCustomer[4]} ${sampleCustomer[5]})\n\n` +
+                    `--- 실제 발송될 메시지 ---\n\n${personalizedMessage}\n\n` +
+                    `--- 테스트 정보 ---\n` +
+                    `발송 시간: ${new Date().toLocaleString('ko-KR')}\n` +
+                    `시스템: 더원주택관리 v2.0`;
+                
+                console.log('📤 카카오 메시지 발송 시도:', fullMessage);
+                
+                // 카카오 나에게 메시지 보내기 API 호출
+                const response = await new Promise((resolve, reject) => {
+                    Kakao.API.request({
+                        url: '/v2/api/talk/memo/default/send',
+                        data: {
+                            template_object: {
+                                object_type: 'text',
+                                text: fullMessage,
+                                link: {
+                                    web_url: window.location.href,
+                                    mobile_web_url: window.location.href
+                                }
+                            }
+                        },
+                        success: function(response) {
+                            console.log('✅ 카카오 메시지 발송 성공:', response);
+                            resolve(response);
+                        },
+                        fail: function(error) {
+                            console.error('❌ 카카오 메시지 발송 실패:', error);
+                            reject(error);
+                        }
+                    });
+                });
+                
+                results.success.push({
+                    name: '테스트 발송 (본인)',
+                    phone: '테스트',
+                    building: '테스트',
+                    room: `${targetCustomers.length}명 대상`,
+                    messageId: `KAKAO_${Date.now()}`,
+                    method: 'kakao_memo_api'
+                });
+                
+            } catch (error) {
+                console.error('❌ 카카오 메시지 발송 실패:', error);
+                
+                let errorMessage = '알 수 없는 오류';
+                if (error.code) {
+                    switch(error.code) {
+                        case -401:
+                            errorMessage = '로그인이 필요합니다';
+                            break;
+                        case -402:
+                            errorMessage = '앱 권한이 없습니다';
+                            break;
+                        case -603:
+                            errorMessage = '메시지 전송 실패';
+                            break;
+                        default:
+                            errorMessage = `카카오 API 오류 (${error.code})`;
+                    }
+                } else if (error.message) {
+                    errorMessage = error.message;
+                }
+                
+                results.failure.push({
+                    name: '테스트 발송',
+                    phone: '테스트',
+                    building: '테스트',
+                    room: '테스트',
+                    reason: errorMessage,
+                    method: 'kakao_memo_api'
+                });
+                
+                // 인증 오류인 경우 로그아웃 처리
+                if (error.code === -401) {
+                    kakaoAccessToken = null;
+                    updateAuthStatus(false);
+                }
+            }
+            
+            return results;
+        }
+        
+        // 진행률과 함께 메시지 발송 (시뮬레이션)
         async function sendKakaoMessagesWithProgress(customers, messageTemplate, messageType, onProgress) {
             const results = {
                 success: [],
                 failure: [],
                 total: customers.length
             };
-            
-            // 발송 방법 선택
-            const sendMethod = await detectAvailableMethod();
-            console.log(`발송 방법: ${sendMethod}`);
             
             for (let i = 0; i < customers.length; i++) {
                 const customer = customers[i];
@@ -872,22 +1189,17 @@
                     // 메시지 개인화
                     const personalizedMessage = personalizeMessage(messageTemplate, customer, messageType);
                     
-                    // 실제 API 호출
-                    const result = await sendKakaoMessage({
-                        method: sendMethod,
-                        customer: customer,
-                        message: personalizedMessage,
-                        messageType: messageType
-                    });
+                    // 시뮬레이션 발송 (90% 성공률)
+                    const success = Math.random() > 0.1;
                     
-                    if (result.success) {
+                    if (success) {
                         results.success.push({
                             name: customer[1],
                             phone: customer[2],
                             building: customer[4],
                             room: customer[5],
-                            messageId: result.messageId,
-                            method: result.method
+                            messageId: `SIM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                            method: 'simulation'
                         });
                     } else {
                         results.failure.push({
@@ -895,16 +1207,16 @@
                             phone: customer[2],
                             building: customer[4],
                             room: customer[5],
-                            reason: result.error || '발송 실패',
-                            method: result.method
+                            reason: '시뮬레이션 발송 실패',
+                            method: 'simulation'
                         });
                     }
                     
                     // 진행률 업데이트
                     if (onProgress) onProgress();
                     
-                    // API 제한 고려 (초당 최대 10건)
-                    await new Promise(resolve => setTimeout(resolve, 150));
+                    // 실제와 유사한 지연
+                    await new Promise(resolve => setTimeout(resolve, 100 + Math.random() * 200));
                     
                 } catch (error) {
                     console.error(`${customer[1]} 발송 실패:`, error);
@@ -924,246 +1236,6 @@
             return results;
         }
         
-        // 실제 카카오톡 메시지 발송
-        async function sendKakaoMessages(customers, messageTemplate, messageType) {
-            const results = {
-                success: [],
-                failure: [],
-                total: customers.length
-            };
-            
-            // 발송 방법 선택 (실제 환경에서는 서버에서 처리)
-            const sendMethod = await detectAvailableMethod();
-            
-            for (const customer of customers) {
-                try {
-                    // 메시지 개인화
-                    const personalizedMessage = personalizeMessage(messageTemplate, customer, messageType);
-                    
-                    // 실제 API 호출
-                    const result = await sendKakaoMessage({
-                        method: sendMethod,
-                        customer: customer,
-                        message: personalizedMessage,
-                        messageType: messageType
-                    });
-                    
-                    if (result.success) {
-                        results.success.push({
-                            name: customer[1],
-                            phone: customer[2],
-                            building: customer[4],
-                            room: customer[5],
-                            messageId: result.messageId
-                        });
-                    } else {
-                        results.failure.push({
-                            name: customer[1],
-                            phone: customer[2],
-                            building: customer[4],
-                            room: customer[5],
-                            reason: result.error || '발송 실패'
-                        });
-                    }
-                    
-                    // API 제한 고려 (초당 최대 10건)
-                    await new Promise(resolve => setTimeout(resolve, 150));
-                    
-                } catch (error) {
-                    console.error(`${customer[1]} 발송 실패:`, error);
-                    results.failure.push({
-                        name: customer[1],
-                        phone: customer[2],
-                        building: customer[4],
-                        room: customer[5],
-                        reason: error.message
-                    });
-                }
-            }
-            
-            return results;
-        }
-        
-        // 사용 가능한 발송 방법 감지
-        async function detectAvailableMethod() {
-            // 1순위: 카카오 비즈니스 API (알림톡)
-            try {
-                const businessCheck = await checkKakaoBusinessAPI();
-                if (businessCheck.available) {
-                    return 'business';
-                }
-            } catch (error) {
-                console.log('카카오 비즈니스 API 사용 불가:', error.message);
-            }
-            
-            // 2순위: 외부 서비스 API (알리고, 쿨SMS 등)
-            try {
-                const externalCheck = await checkExternalAPI();
-                if (externalCheck.available) {
-                    return 'external';
-                }
-            } catch (error) {
-                console.log('외부 서비스 API 사용 불가:', error.message);
-            }
-            
-            // 3순위: 시뮬레이션 모드
-            return 'simulation';
-        }
-        
-        // 카카오 비즈니스 API 확인
-        async function checkKakaoBusinessAPI() {
-            try {
-                // 실제 환경에서는 비즈니스 계정 및 채널 정보 확인
-                const response = await fetch('/api/kakao/business/check', {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `KakaoAK ${KAKAO_CONFIG.ADMIN_KEY}`,
-                        'Content-Type': 'application/json'
-                    }
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    return { available: data.channelRegistered };
-                }
-            } catch (error) {
-                // 서버가 없는 경우 시뮬레이션으로 처리
-                console.log('서버 연결 실패, 시뮬레이션 모드로 전환');
-            }
-            
-            return { available: false };
-        }
-        
-        // 외부 API 확인 (알리고, 쿨SMS 등)
-        async function checkExternalAPI() {
-            try {
-                // 외부 서비스 연결 확인
-                const response = await fetch('/api/external/sms/check');
-                if (response.ok) {
-                    return { available: true };
-                }
-            } catch (error) {
-                console.log('외부 서비스 연결 실패');
-            }
-            
-            return { available: false };
-        }
-        
-        // 실제 카카오 메시지 발송
-        async function sendKakaoMessage({ method, customer, message, messageType }) {
-            const phoneNumber = customer[2].replace(/[^0-9]/g, ''); // 숫자만 추출
-            
-            switch (method) {
-                case 'business':
-                    return await sendBusinessMessage(phoneNumber, message, messageType);
-                    
-                case 'external':
-                    return await sendExternalMessage(phoneNumber, message, messageType);
-                    
-                default:
-                    return await simulateMessageSend(phoneNumber, message);
-            }
-        }
-        
-        // 카카오 비즈니스 API 발송
-        async function sendBusinessMessage(phoneNumber, message, messageType) {
-            try {
-                const templateCode = getTemplateCode(messageType);
-                
-                const response = await fetch('/api/kakao/business/send', {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `KakaoAK ${KAKAO_CONFIG.ADMIN_KEY}`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        phone: phoneNumber,
-                        templateCode: templateCode,
-                        message: message,
-                        channelKey: 'YOUR_CHANNEL_KEY' // 실제 채널 키 필요
-                    })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    return {
-                        success: true,
-                        messageId: data.messageId,
-                        method: 'kakao_business'
-                    };
-                } else {
-                    throw new Error(`API 오류: ${response.status}`);
-                }
-                
-            } catch (error) {
-                return {
-                    success: false,
-                    error: `카카오 비즈니스 API 오류: ${error.message}`
-                };
-            }
-        }
-        
-        // 외부 서비스 발송 (알리고 예시)
-        async function sendExternalMessage(phoneNumber, message, messageType) {
-            try {
-                const formData = new FormData();
-                formData.append('key', 'YOUR_ALIGO_API_KEY'); // 실제 알리고 API 키 필요
-                formData.append('userid', 'YOUR_ALIGO_USER_ID');
-                formData.append('sender', '02-1234-5678'); // 발신번호
-                formData.append('receiver', phoneNumber);
-                formData.append('msg', message);
-                formData.append('msg_type', 'AT'); // 알림톡
-                formData.append('template_code', getTemplateCode(messageType));
-                
-                const response = await fetch('https://apis.aligo.in/send/', {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    return {
-                        success: data.result_code === '1',
-                        messageId: data.msg_id,
-                        method: 'aligo',
-                        error: data.result_code !== '1' ? data.message : null
-                    };
-                } else {
-                    throw new Error(`HTTP 오류: ${response.status}`);
-                }
-                
-            } catch (error) {
-                return {
-                    success: false,
-                    error: `외부 API 오류: ${error.message}`
-                };
-            }
-        }
-        
-        // 시뮬레이션 발송 (개발/테스트용)
-        async function simulateMessageSend(phoneNumber, message) {
-            // 시뮬레이션: 90% 성공률
-            const success = Math.random() > 0.1;
-            
-            return {
-                success: success,
-                messageId: success ? `SIM_${Date.now()}_${Math.random().toString(36).substr(2, 9)}` : null,
-                method: 'simulation',
-                error: success ? null : '시뮬레이션 발송 실패'
-            };
-        }
-        
-        // 템플릿 코드 매핑
-        function getTemplateCode(messageType) {
-            const templateCodes = {
-                'unpaid': 'UNPAID_NOTICE_001',
-                'reminder': 'PAYMENT_REMINDER_001',
-                'notice': 'GENERAL_NOTICE_001',
-                'custom': 'CUSTOM_MESSAGE_001'
-            };
-            return templateCodes[messageType] || 'GENERAL_NOTICE_001';
-        }
-        
         // 메시지 개인화
         function personalizeMessage(template, customer, messageType) {
             let message = template;
@@ -1174,40 +1246,39 @@
             message = message.replace(/{room}/g, customer[5]);
             message = message.replace(/{month}/g, '2024년 7월');
             
-            // 요금 정보 치환
-            const customerFee = monthlyFees.find(fee => fee[1] === customer[0]);
-            if (customerFee) {
-                message = message.replace(/{amount}/g, formatCurrency(parseInt(customerFee[5])));
+            // 요금 정보 치환 (customer_id는 첫 번째 컬럼)
+            const customerId = customer[0];
+            const customerFee = monthlyFees.find(fee => fee[0] === customerId);
+            if (customerFee && customerFee[4]) {
+                message = message.replace(/{amount}/g, formatCurrency(parseInt(customerFee[4])));
+            } else {
+                // 기본 관리비 (건물별로 다르게 설정 가능)
+                const defaultAmount = getDefaultFeeByBuilding(customer[4]);
+                message = message.replace(/{amount}/g, formatCurrency(defaultAmount));
             }
+            
+            // 공지사항의 경우 내용 치환
+            message = message.replace(/{content}/g, '예시 공지사항 내용입니다.');
             
             return message;
         }
         
-        // 유틸리티 함수들
-        function formatCurrency(amount) {
-            return new Intl.NumberFormat('ko-KR').format(amount) + '원';
-        }
-        
-        function formatPhoneNumber(phone) {
-            // 01012345678 형식으로 변환
-            return phone.replace(/[^0-9]/g, '');
-        }
-        
-        function validatePhoneNumber(phone) {
-            const pattern = /^010\d{8}$/;
-            return pattern.test(formatPhoneNumber(phone));
-        }
-        
-        // 전화번호 유효성 검사
-        function validateTargetCustomers(customers) {
-            const invalidNumbers = customers.filter(customer => 
-                !validatePhoneNumber(customer[2])
-            );
+        // 건물별 기본 관리비 설정
+        function getDefaultFeeByBuilding(buildingName) {
+            const defaultFees = {
+                '운정힐스': 150000,
+                '노블힐스': 140000,
+                '힐링홈즈': 130000,
+                '목동동716-2': 120000,
+                '야당동148-1': 110000,
+                '동패동1978': 125000,
+                '동패동47-6': 115000,
+                '동패동47-13': 115000,
+                '동패동87-1': 120000,
+                '와동동1620-7': 135000
+            };
             
-            if (invalidNumbers.length > 0) {
-                const names = invalidNumbers.map(c => c[1]).join(', ');
-                throw new Error(`잘못된 전화번호: ${names}`);
-            }
+            return defaultFees[buildingName] || 120000; // 기본값
         }
         
         // 결과 모달 표시
@@ -1217,24 +1288,16 @@
             
             const successRate = ((results.success.length / results.total) * 100).toFixed(1);
             const failureRate = ((results.failure.length / results.total) * 100).toFixed(1);
-            
-            // 사용된 발송 방법 확인
-            const methods = [...new Set([
-                ...results.success.map(r => r.method),
-                ...results.failure.map(r => r.method)
-            ])];
-            
-            const methodText = methods.includes('kakao_business') ? '카카오 비즈니스 API' :
-                             methods.includes('aligo') ? '알리고 API' :
-                             methods.includes('external') ? '외부 서비스 API' : '시뮬레이션 모드';
+            const totalCost = results.success.length * 15; // 건당 15원 기준
             
             modalContent.innerHTML = `
-                <h3>📊 발송 결과</h3>
+                <h3>🚀 더원클린앤케어 알림톡 발송 결과</h3>
+                
                 <div class="success-message">
-                    <strong>발송 완료!</strong><br>
-                    발송 방법: ${methodText}<br>
+                    <strong>✅ 알림톡 발송 완료!</strong><br>
                     총 ${results.total}명 중 ${results.success.length}명 성공 (성공률: ${successRate}%)
-                    ${results.failure.length > 0 ? `, ${results.failure.length}명 실패 (실패율: ${failureRate}%)` : ''}
+                    ${results.failure.length > 0 ? `, ${results.failure.length}명 실패 (실패율: ${failureRate}%)` : ''}<br>
+                    <small>발송 비용: ${totalCost.toLocaleString()}원 (성공 건수 기준)</small>
                 </div>
                 
                 ${results.success.length > 0 ? `
@@ -1243,7 +1306,9 @@
                         ${results.success.map(customer => `
                             <div class="target-item">
                                 ${customer.name} (${customer.building} ${customer.room})
-                                ${customer.messageId ? `<br><small>ID: ${customer.messageId}</small>` : ''}
+                                <br><small style="color: #27ae60;">
+                                    채널: 더원클린앤케어 | ID: ${customer.messageId}
+                                </small>
                             </div>
                         `).join('')}
                     </div>
@@ -1252,25 +1317,29 @@
                 ${results.failure.length > 0 ? `
                     <h4>❌ 발송 실패 (${results.failure.length}명)</h4>
                     <div class="error-message">
-                        발송 실패 사유를 확인하고 다시 시도해주세요.
+                        발송 실패 사유를 확인하고 재발송을 검토해주세요.
                     </div>
                     <div class="target-list" style="max-height: 150px; overflow-y: auto;">
                         ${results.failure.map(customer => `
                             <div class="target-item">
                                 ${customer.name} (${customer.building} ${customer.room})
-                                <br><small style="color: #e74c3c;">사유: ${customer.reason}</small>
+                                <br><small style="color: #e74c3c;">실패 사유: ${customer.reason}</small>
                             </div>
                         `).join('')}
                     </div>
                 ` : ''}
                 
                 <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                    <h4>💡 실제 서비스 사용을 위한 안내</h4>
+                    <h4>💡 실제 운영 모드로 전환 안내</h4>
                     <p style="font-size: 14px; margin: 5px 0;">
-                        • <strong>카카오 비즈니스 계정</strong>: 사업자 등록 후 카카오톡 채널 연결 필요<br>
-                        • <strong>알림톡 템플릿</strong>: 카카오 승인 필요 (1-3일 소요)<br>
-                        • <strong>발송 비용</strong>: 건당 8-20원 (서비스별 차이)<br>
-                        • <strong>법적 준수</strong>: 개인정보 동의 및 수신거부 처리 필수
+                        <strong>현재 상태:</strong> 시뮬레이션 모드 (실제 발송 안됨)<br><br>
+                        <strong>실제 운영을 위한 필요 작업:</strong><br>
+                        • <strong>서버 구축:</strong> Node.js/Python 등으로 백엔드 API 구현<br>
+                        • <strong>카카오 비즈니스:</strong> 사업자 등록 및 채널 연결<br>
+                        • <strong>알림톡 템플릿:</strong> 카카오 승인 완료 (현재 4개 템플릿)<br>
+                        • <strong>데이터베이스:</strong> 실제 DB 연결 및 로그 저장<br>
+                        • <strong>보안 설정:</strong> API 키 서버사이드 보관<br><br>
+                        <strong>예상 비용:</strong> 알림톡 건당 15원, SMS 대체발송 건당 20원
                     </p>
                 </div>
             `;
@@ -1278,15 +1347,19 @@
             modal.style.display = 'block';
         }
         
+        // 전역 함수 등록 (필요한 경우)
+        window.updateChannelStatus = updateChannelStatus;
+        
         // 유틸리티 함수들
         function formatCurrency(amount) {
             return new Intl.NumberFormat('ko-KR').format(amount) + '원';
         }
         
-        // 로그아웃 처리
+        // 로그아웃 처리 (헤더의 로그아웃 버튼)
         document.querySelector('.logout-btn').addEventListener('click', function() {
-            if (confirm('로그아웃하시겠습니까?')) {
-                alert('로그아웃되었습니다.');
+            if (confirm('관리자 계정에서 로그아웃하시겠습니까?')) {
+                alert('관리자 로그아웃되었습니다.');
+                // 실제로는 관리자 세션 종료 처리
                 // window.location.href = 'login.html';
             }
         });

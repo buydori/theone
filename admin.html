@@ -1,4 +1,9 @@
-<!DOCTYPE html>
+<script>
+        // 카카오 API 설정 (최상단에 위치) - 필수!
+        const KAKAO_CONFIG = {
+            NATIVE_KEY: 'dce05cf27a77552ad4a84f5f5e5d7ca8',
+            REST_API_KEY: 'd6550649f97e48cc6a3232236a4a2153',
+            JAVASCRIPT_KEY: 'ecfecee0ccad5db8501127<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
@@ -385,7 +390,7 @@
 <body>
     <div class="header">
         <div class="header-content">
-            <h1>🏢 더원주택관리 - 관리자3.1.0 </h1>
+            <h1>🏢 더원주택관리 - 관리자3.1.3</h1>
             <div class="user-info">
                 <span>관리자님 환영합니다</span>
                 <button class="logout-btn">로그아웃</button>
@@ -511,6 +516,15 @@
 
     <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"></script>
     <script>
+        // 카카오 API 설정 (최상단에 위치) - 필수!
+        const KAKAO_CONFIG = {
+            NATIVE_KEY: 'dce05cf27a77552ad4a84f5f5e5d7ca8',
+            REST_API_KEY: 'd6550649f97e48cc6a3232236a4a2153',
+            JAVASCRIPT_KEY: 'ecfecee0ccad5db8501127246607bba6',
+            ADMIN_KEY: 'f69c2cf1b13c41138b1db3304c28db85',
+            REDIRECT_URI: window.location.origin + window.location.pathname
+        };
+
         // 전역 변수
         let allCustomers = [];
         let allBuildings = [];

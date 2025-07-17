@@ -385,7 +385,7 @@
 <body>
     <div class="header">
         <div class="header-content">
-            <h1>🏢 더원주택관리 - 관리자3.0.0 (비즈니스 알림톡)</h1>
+            <h1>🏢 더원주택관리 - 관리자3.1.0 (개인 테스트 발송)</h1>
             <div class="user-info">
                 <span>관리자님 환영합니다</span>
                 <button class="logout-btn">로그아웃</button>
@@ -496,7 +496,7 @@
                     <textarea id="messageContent" name="messageContent" placeholder="메시지 내용을 입력하세요..."></textarea>
                 </div>
                 
-                <button type="submit" class="send-btn" id="sendBtn">📨 채널 확인 중...</button>
+                <button type="submit" class="send-btn" id="sendBtn">📨 로그인 후 이용 가능</button>
             </form>
         </div>
     </div>
@@ -509,13 +509,14 @@
         </div>
     </div>
 
+    <script src="https://t1.kakaocdn.net/kakao_js_sdk/2.7.2/kakao.min.js"></script>
     <script>
         // 전역 변수
         let allCustomers = [];
         let allBuildings = [];
         let monthlyFees = [];
         let targetCustomersList = [];
-        let businessChannelStatus = 'checking'; // checking, available, unavailable
+        let kakaoAccessToken = null;
         
         // 카카오 SDK 초기화 및 로그인 상태 확인
         function initKakao() {
@@ -1286,60 +1287,63 @@
             const modal = document.getElementById('resultModal');
             const modalContent = document.getElementById('modalContent');
             
-            const successRate = ((results.success.length / results.total) * 100).toFixed(1);
-            const failureRate = ((results.failure.length / results.total) * 100).toFixed(1);
-            const totalCost = results.success.length * 15; // 건당 15원 기준
+            // 실제 발송인지 확인
+            const isRealSend = results.isRealSend;
             
             modalContent.innerHTML = `
-                <h3>🚀 더원클린앤케어 알림톡 발송 결과</h3>
+                <h3>🚀 카카오톡 테스트 발송 결과</h3>
                 
-                <div class="success-message">
-                    <strong>✅ 알림톡 발송 완료!</strong><br>
-                    총 ${results.total}명 중 ${results.success.length}명 성공 (성공률: ${successRate}%)
-                    ${results.failure.length > 0 ? `, ${results.failure.length}명 실패 (실패율: ${failureRate}%)` : ''}<br>
-                    <small>발송 비용: ${totalCost.toLocaleString()}원 (성공 건수 기준)</small>
-                </div>
+                ${isRealSend ? `
+                    <div class="success-message">
+                        <strong>✅ 실제 카카오톡 발송 완료!</strong><br>
+                        테스트 메시지가 본인 카카오톡으로 발송되었습니다.<br>
+                        <small>실제 고객에게는 "더원클린앤케어" 채널명으로 발송될 예정입니다.</small>
+                    </div>
+                ` : `
+                    <div class="success-message">
+                        <strong>시뮬레이션 발송 완료!</strong><br>
+                        실제 발송을 위해서는 카카오 로그인이 필요합니다.
+                    </div>
+                `}
                 
                 ${results.success.length > 0 ? `
-                    <h4>✅ 발송 성공 (${results.success.length}명)</h4>
+                    <h4>✅ 발송 성공 (${results.success.length}건)</h4>
                     <div class="target-list" style="max-height: 150px; overflow-y: auto; margin-bottom: 15px;">
                         ${results.success.map(customer => `
                             <div class="target-item">
-                                ${customer.name} (${customer.building} ${customer.room})
-                                <br><small style="color: #27ae60;">
-                                    채널: 더원클린앤케어 | ID: ${customer.messageId}
-                                </small>
+                                ${customer.name} ${customer.building ? `(${customer.building} ${customer.room})` : ''}
+                                ${customer.messageId ? `<br><small style="color: #27ae60;">ID: ${customer.messageId}</small>` : ''}
                             </div>
                         `).join('')}
                     </div>
                 ` : ''}
                 
                 ${results.failure.length > 0 ? `
-                    <h4>❌ 발송 실패 (${results.failure.length}명)</h4>
+                    <h4>❌ 발송 실패 (${results.failure.length}건)</h4>
                     <div class="error-message">
-                        발송 실패 사유를 확인하고 재발송을 검토해주세요.
+                        ${isRealSend ? '카카오 API 오류가 발생했습니다.' : '로그인이 필요하거나 오류가 발생했습니다.'}
                     </div>
                     <div class="target-list" style="max-height: 150px; overflow-y: auto;">
                         ${results.failure.map(customer => `
                             <div class="target-item">
-                                ${customer.name} (${customer.building} ${customer.room})
-                                <br><small style="color: #e74c3c;">실패 사유: ${customer.reason}</small>
+                                ${customer.name} ${customer.building ? `(${customer.building} ${customer.room})` : ''}
+                                <br><small style="color: #e74c3c;">사유: ${customer.reason}</small>
                             </div>
                         `).join('')}
                     </div>
                 ` : ''}
                 
                 <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
-                    <h4>💡 실제 운영 모드로 전환 안내</h4>
+                    <h4>💡 실제 고객 발송을 위한 다음 단계</h4>
                     <p style="font-size: 14px; margin: 5px 0;">
-                        <strong>현재 상태:</strong> 시뮬레이션 모드 (실제 발송 안됨)<br><br>
-                        <strong>실제 운영을 위한 필요 작업:</strong><br>
-                        • <strong>서버 구축:</strong> Node.js/Python 등으로 백엔드 API 구현<br>
-                        • <strong>카카오 비즈니스:</strong> 사업자 등록 및 채널 연결<br>
-                        • <strong>알림톡 템플릿:</strong> 카카오 승인 완료 (현재 4개 템플릿)<br>
-                        • <strong>데이터베이스:</strong> 실제 DB 연결 및 로그 저장<br>
-                        • <strong>보안 설정:</strong> API 키 서버사이드 보관<br><br>
-                        <strong>예상 비용:</strong> 알림톡 건당 15원, SMS 대체발송 건당 20원
+                        <strong>현재 상태:</strong> ${isRealSend ? '개인 테스트 발송 가능' : '로그인 필요'}<br><br>
+                        <strong>실제 고객 발송을 위해 필요한 준비:</strong><br>
+                        • <strong>1단계:</strong> 사업자등록증으로 카카오 비즈니스 계정 등록<br>
+                        • <strong>2단계:</strong> "더원클린앤케어" 카카오톡 채널 개설 및 인증<br>
+                        • <strong>3단계:</strong> 알림톡 템플릿 4개 등록 및 승인 (1-3일 소요)<br>
+                        • <strong>4단계:</strong> 서버에서 비즈니스 알림톡 API 구현<br><br>
+                        <strong>예상 비용:</strong> 알림톡 건당 15원, SMS 대체발송 건당 20원<br>
+                        <strong>현재 테스트:</strong> 개인 계정으로 메시지 미리보기 가능
                     </p>
                 </div>
             `;
@@ -1347,8 +1351,10 @@
             modal.style.display = 'block';
         }
         
-        // 전역 함수 등록 (필요한 경우)
-        window.updateChannelStatus = updateChannelStatus;
+        // 전역 함수 등록 (HTML onclick에서 사용하기 위해)
+        window.authenticateKakao = authenticateKakao;
+        window.logoutKakao = logoutKakao;
+        window.updateAuthStatus = updateAuthStatus;
         
         // 유틸리티 함수들
         function formatCurrency(amount) {
@@ -1358,9 +1364,13 @@
         // 로그아웃 처리 (헤더의 로그아웃 버튼)
         document.querySelector('.logout-btn').addEventListener('click', function() {
             if (confirm('관리자 계정에서 로그아웃하시겠습니까?')) {
-                alert('관리자 로그아웃되었습니다.');
-                // 실제로는 관리자 세션 종료 처리
-                // window.location.href = 'login.html';
+                // 카카오도 함께 로그아웃
+                if (kakaoAccessToken && typeof Kakao !== 'undefined') {
+                    logoutKakao();
+                } else {
+                    alert('관리자 로그아웃되었습니다.');
+                    // window.location.href = 'login.html';
+                }
             }
         });
     </script>

@@ -1,0 +1,1446 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>더원주택관리 - 관리비관리</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Noto Sans KR', Arial, sans-serif;
+            background: #f5f7fa;
+            color: #2c3e50;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: white;
+            padding: 20px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .header h1 {
+            font-size: 24px;
+        }
+        
+        .back-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 8px 16px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+        
+        .bank-upload-section {
+            background: linear-gradient(135deg, #27ae60, #2ecc71);
+            color: white;
+            padding: 25px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 15px rgba(39, 174, 96, 0.3);
+        }
+        
+        .bank-upload-section h3 {
+            margin-bottom: 15px;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .upload-area {
+            background: rgba(255,255,255,0.1);
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 10px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 20px;
+            transition: all 0.3s;
+        }
+        
+        .upload-area:hover {
+            background: rgba(255,255,255,0.15);
+            border-color: rgba(255,255,255,0.5);
+        }
+        
+        .upload-area.dragover {
+            background: rgba(255,255,255,0.2);
+            border-color: white;
+        }
+        
+        .file-input {
+            display: none;
+        }
+        
+        .upload-btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 1px solid rgba(255,255,255,0.3);
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 10px;
+            display: inline-block;
+        }
+        
+        .upload-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .matching-results {
+            background: white;
+            border-radius: 10px;
+            margin-top: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: none;
+        }
+        
+        .matching-header {
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .matching-content {
+            padding: 20px;
+        }
+        
+        .match-item {
+            background: #f8f9fa;
+            border: 1px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .match-item.matched {
+            border-color: #27ae60;
+            background: #d5f4e6;
+        }
+        
+        .match-item.unmatched {
+            border-color: #f39c12;
+            background: #fef9e7;
+        }
+        
+        .match-info {
+            flex: 1;
+        }
+        
+        .match-info .bank-data {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+        
+        .match-info .customer-data {
+            color: #27ae60;
+            font-size: 14px;
+        }
+        
+        .match-info .no-match {
+            color: #f39c12;
+            font-size: 14px;
+        }
+        
+        .match-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .match-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .confirm-btn {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .manual-btn {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .skip-btn {
+            background: #95a5a6;
+            color: white;
+        }
+        
+        .controls {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .filter-group select,
+        .filter-group input {
+            padding: 8px 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        .search-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .search-group input {
+            padding: 8px 12px;
+            border: 2px solid #e1e8ed;
+            border-radius: 5px;
+            font-size: 14px;
+            min-width: 200px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 5px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+        }
+        
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .btn-warning {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .btn:hover {
+            opacity: 0.9;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        
+        .summary-card .number {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .summary-card .label {
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        
+        .summary-card.total .number {
+            color: #2c3e50;
+        }
+        
+        .summary-card.paid .number {
+            color: #27ae60;
+        }
+        
+        .summary-card.unpaid .number {
+            color: #e74c3c;
+        }
+        
+        .summary-card.amount .number {
+            color: #f39c12;
+        }
+        
+        .table-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            overflow: hidden;
+        }
+        
+        .table-header {
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .fees-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        .fees-table th,
+        .fees-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ecf0f1;
+            font-size: 14px;
+        }
+        
+        .fees-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .fees-table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .status-paid {
+            background: #d5f4e6;
+            color: #27ae60;
+        }
+        
+        .status-unpaid {
+            background: #ffeaa7;
+            color: #f39c12;
+        }
+        
+        .status-partial {
+            background: #ddd6fe;
+            color: #7c3aed;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .action-btn {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background: white;
+            margin: 30px auto;
+            padding: 0;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            background: #34495e;
+            color: white;
+            padding: 20px;
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .modal-body {
+            padding: 30px;
+        }
+        
+        .modal-footer {
+            padding: 20px 30px;
+            border-top: 1px solid #ecf0f1;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0 10px;
+        }
+        
+        .close:hover {
+            color: white;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .progress-bar {
+            background: #ecf0f1;
+            border-radius: 10px;
+            height: 20px;
+            margin: 15px 0;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, #27ae60, #2ecc71);
+            height: 100%;
+            border-radius: 10px;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        @media (max-width: 768px) {
+            .controls-row {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .filter-group, .search-group {
+                flex-direction: column;
+                width: 100%;
+            }
+            
+            .summary-cards {
+                grid-template-columns: 1fr 1fr;
+            }
+            
+            .fees-table {
+                font-size: 12px;
+            }
+            
+            .fees-table th,
+            .fees-table td {
+                padding: 8px 4px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="header-content">
+            <h1>💰 관리비관리</h1>
+            <a href="admin.html" class="back-btn">← 대시보드로 돌아가기</a>
+        </div>
+    </div>
+    
+    <div class="container">
+        <!-- 카카오뱅크 통장내역 업로드 섹션 -->
+        <div class="bank-upload-section">
+            <h3>🏦 카카오뱅크 통장내역 자동 매칭</h3>
+            <p style="margin-bottom: 20px; opacity: 0.9;">
+                카카오뱅크에서 다운로드한 거래내역 엑셀 파일을 업로드하면 자동으로 고객 납부내역과 매칭합니다.
+            </p>
+            
+            <div class="upload-area" id="uploadArea">
+                <div style="font-size: 48px; margin-bottom: 15px;">📄</div>
+                <div style="font-size: 18px; margin-bottom: 10px;">거래내역 엑셀 파일을 드래그하거나 클릭하여 업로드</div>
+                <div style="font-size: 14px; opacity: 0.8;">지원 형식: .xlsx, .xls, .csv</div>
+                <input type="file" id="bankFileInput" class="file-input" accept=".xlsx,.xls,.csv">
+                <div style="margin-top: 20px;">
+                    <label for="bankFileInput" class="upload-btn">📁 파일 선택</label>
+                </div>
+            </div>
+            
+            <div id="uploadProgress" style="display: none;">
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progressFill" style="width: 0%;">0%</div>
+                </div>
+                <div id="progressText" style="text-align: center; margin-top: 10px; opacity: 0.9;"></div>
+            </div>
+        </div>
+        
+        <!-- 매칭 결과 섹션 -->
+        <div id="matchingResults" class="matching-results">
+            <div class="matching-header">
+                🔍 거래내역 매칭 결과
+                <span style="float: right; font-size: 14px;">
+                    매칭됨: <span id="matchedCount">0</span>건 | 미매칭: <span id="unmatchedCount">0</span>건
+                </span>
+            </div>
+            <div class="matching-content" id="matchingContent">
+                <!-- 매칭 결과가 여기에 표시됩니다 -->
+            </div>
+            <div style="padding: 20px; border-top: 1px solid #ecf0f1; text-align: center;">
+                <button class="btn btn-success" onclick="processAllMatches()">✅ 매칭된 항목 일괄 처리</button>
+                <button class="btn btn-warning" onclick="exportUnmatched()" style="margin-left: 10px;">📊 미매칭 내역 다운로드</button>
+            </div>
+        </div>
+        
+        <!-- 필터 및 검색 컨트롤 -->
+        <div class="controls">
+            <div class="controls-row">
+                <div class="filter-group">
+                    <label>년월:</label>
+                    <input type="month" id="monthFilter" value="2024-07">
+                    
+                    <label>건물:</label>
+                    <select id="buildingFilter">
+                        <option value="">전체 건물</option>
+                    </select>
+                    
+                    <label>납부상태:</label>
+                    <select id="statusFilter">
+                        <option value="">전체</option>
+                        <option value="완납">완납</option>
+                        <option value="미납">미납</option>
+                        <option value="부분납부">부분납부</option>
+                    </select>
+                </div>
+                
+                <div class="search-group">
+                    <input type="text" id="searchInput" placeholder="고객명, 건물명, 전화번호로 검색...">
+                    <button class="btn btn-primary" onclick="searchFees()">🔍 검색</button>
+                </div>
+            </div>
+            
+            <div class="controls-row">
+                <button class="btn btn-success" onclick="openModal('generate')">📋 월별 관리비 생성</button>
+                <div>
+                    <button class="btn btn-warning" onclick="openModal('bulk-payment')">💰 일괄 납부 처리</button>
+                    <button class="btn btn-primary" onclick="exportToExcel()">📊 Excel 다운로드</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 요약 통계 -->
+        <div class="summary-cards">
+            <div class="summary-card total">
+                <div class="number" id="totalCount">0</div>
+                <div class="label">총 청구건수</div>
+            </div>
+            <div class="summary-card paid">
+                <div class="number" id="paidCount">0</div>
+                <div class="label">납부완료</div>
+            </div>
+            <div class="summary-card unpaid">
+                <div class="number" id="unpaidCount">0</div>
+                <div class="label">미납건수</div>
+            </div>
+            <div class="summary-card amount">
+                <div class="number" id="totalAmount">0원</div>
+                <div class="label">총 청구금액</div>
+            </div>
+            <div class="summary-card amount">
+                <div class="number" id="unpaidAmount">0원</div>
+                <div class="label">미납금액</div>
+            </div>
+        </div>
+        
+        <!-- 관리비 목록 테이블 -->
+        <div class="table-container">
+            <div class="table-header">
+                <span>관리비 목록</span>
+            </div>
+            <div id="tableContent">
+                <div class="loading">데이터를 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 수동 매칭 모달 -->
+    <div id="manualMatchModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>수동 매칭</span>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div id="manualMatchContent">
+                    <!-- 수동 매칭 내용이 여기에 표시됩니다 -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('manualMatchModal')">취소</button>
+                <button class="btn btn-success" onclick="confirmManualMatch()">매칭 확정</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script>
+        // 구글 시트 API 설정
+        const API_KEY = 'AIzaSyD0tH5ebOAlUMnGrrLKdLAM3EzIuDAfPcA';
+        const SHEET_ID = '1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg';
+        
+        let allFees = [];
+        let filteredFees = [];
+        let allCustomers = [];
+        let bankTransactions = [];
+        let matchingResults = [];
+        let currentManualMatch = null;
+        
+        // 페이지 로드 시 실행
+        document.addEventListener('DOMContentLoaded', async function() {
+            await loadBuildings();
+            await loadCustomers();
+            await loadFees();
+            setupEventListeners();
+        });
+        
+        // 이벤트 리스너 설정
+        function setupEventListeners() {
+            // 파일 드래그 앤 드롭
+            const uploadArea = document.getElementById('uploadArea');
+            const fileInput = document.getElementById('bankFileInput');
+            
+            uploadArea.addEventListener('click', () => fileInput.click());
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('drop', handleDrop);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            
+            fileInput.addEventListener('change', handleFileSelect);
+            
+            // 모달 닫기
+            document.querySelectorAll('.close').forEach(closeBtn => {
+                closeBtn.onclick = function() {
+                    this.closest('.modal').style.display = 'none';
+                };
+            });
+            
+            // 필터 변경 시 자동 검색
+            ['monthFilter', 'buildingFilter', 'statusFilter'].forEach(id => {
+                document.getElementById(id).addEventListener('change', searchFees);
+            });
+            
+            // 검색 입력 시 실시간 검색
+            document.getElementById('searchInput').addEventListener('input', searchFees);
+        }
+        
+        // 드래그 앤 드롭 처리
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadArea').classList.add('dragover');
+        }
+        
+        function handleDragLeave(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadArea').classList.remove('dragover');
+        }
+        
+        function handleDrop(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            document.getElementById('uploadArea').classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+        
+        function handleFileSelect(e) {
+            const files = e.target.files;
+            if (files.length > 0) {
+                processFile(files[0]);
+            }
+        }
+        
+        // 파일 처리
+        async function processFile(file) {
+            if (!file) return;
+            
+            const allowedTypes = [
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-excel',
+                'text/csv'
+            ];
+            
+            if (!allowedTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls|csv)$/i)) {
+                alert('지원하지 않는 파일 형식입니다. Excel 파일(.xlsx, .xls) 또는 CSV 파일을 업로드해주세요.');
+                return;
+            }
+            
+            showProgress(0, '파일을 읽는 중...');
+            
+            try {
+                const data = await readFile(file);
+                showProgress(30, '거래내역을 분석하는 중...');
+                
+                bankTransactions = parseBankData(data);
+                showProgress(60, '고객 정보와 매칭하는 중...');
+                
+                matchingResults = await matchTransactions(bankTransactions);
+                showProgress(100, '매칭 완료!');
+                
+                setTimeout(() => {
+                    hideProgress();
+                    displayMatchingResults();
+                }, 1000);
+                
+            } catch (error) {
+                hideProgress();
+                alert('파일 처리 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+        
+        // 파일 읽기
+        function readFile(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                
+                reader.onload = function(e) {
+                    try {
+                        if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                            resolve(e.target.result);
+                        } else {
+                            const workbook = XLSX.read(e.target.result, { type: 'binary' });
+                            const firstSheetName = workbook.SheetNames[0];
+                            const worksheet = workbook.Sheets[firstSheetName];
+                            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+                            resolve(jsonData);
+                        }
+                    } catch (error) {
+                        reject(error);
+                    }
+                };
+                
+                reader.onerror = function() {
+                    reject(new Error('파일을 읽을 수 없습니다.'));
+                };
+                
+                if (file.type === 'text/csv' || file.name.endsWith('.csv')) {
+                    reader.readAsText(file, 'UTF-8');
+                } else {
+                    reader.readAsBinaryString(file);
+                }
+            });
+        }
+        
+        // 은행 데이터 파싱
+        function parseBankData(data) {
+            let transactions = [];
+            
+            if (typeof data === 'string') {
+                // CSV 파싱
+                const lines = data.split('\n');
+                const headers = lines[0].split(',');
+                
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(',');
+                    if (values.length >= 4) {
+                        transactions.push({
+                            date: values[0]?.trim(),
+                            description: values[1]?.trim(),
+                            amount: parseAmount(values[2]?.trim()),
+                            balance: parseAmount(values[3]?.trim()),
+                            type: values[2]?.includes('-') ? '출금' : '입금'
+                        });
+                    }
+                }
+            } else {
+                // Excel 파싱
+                const headers = data[0] || [];
+                
+                for (let i = 1; i < data.length; i++) {
+                    const row = data[i] || [];
+                    if (row.length >= 4) {
+                        transactions.push({
+                            date: row[0],
+                            description: row[1],
+                            amount: parseAmount(row[2]),
+                            balance: parseAmount(row[3]),
+                            type: String(row[2]).includes('-') ? '출금' : '입금'
+                        });
+                    }
+                }
+            }
+            
+            // 입금 거래만 필터링 (관리비 납부)
+            return transactions.filter(t => 
+                t.type === '입금' && 
+                t.amount > 0 && 
+                t.description && 
+                t.date
+            );
+        }
+        
+        // 금액 파싱
+        function parseAmount(amountStr) {
+            if (!amountStr) return 0;
+            return parseInt(String(amountStr).replace(/[^0-9-]/g, '')) || 0;
+        }
+        
+        // 거래내역과 고객 매칭
+        async function matchTransactions(transactions) {
+            const results = [];
+            
+            for (const transaction of transactions) {
+                const matches = findPotentialMatches(transaction);
+                
+                results.push({
+                    transaction,
+                    matches,
+                    status: matches.length > 0 ? 'matched' : 'unmatched',
+                    selectedMatch: matches.length === 1 ? matches[0] : null
+                });
+            }
+            
+            return results;
+        }
+        
+        // 잠재적 매칭 찾기
+        function findPotentialMatches(transaction) {
+            const matches = [];
+            const description = transaction.description.toLowerCase();
+            const amount = transaction.amount;
+            
+            // 1. 금액 기준 매칭
+            const amountMatches = allFees.filter(fee => {
+                const totalFee = parseInt(fee.total_fee);
+                return Math.abs(totalFee - amount) <= 100; // 100원 오차 허용
+            });
+            
+            // 2. 고객명 기준 매칭
+            for (const fee of amountMatches) {
+                const customer = allCustomers.find(c => c.id === fee.customer_id);
+                if (!customer) continue;
+                
+                const customerName = customer.name.toLowerCase();
+                let matchScore = 0;
+                
+                // 이름이 포함되어 있는지 확인
+                if (description.includes(customerName)) {
+                    matchScore += 50;
+                }
+                
+                // 전화번호 뒷자리가 포함되어 있는지 확인
+                if (description.includes(customer.phone_last4)) {
+                    matchScore += 30;
+                }
+                
+                // 건물명이 포함되어 있는지 확인
+                const buildingName = customer.building_name.toLowerCase();
+                if (description.includes(buildingName)) {
+                    matchScore += 20;
+                }
+                
+                // 금액이 정확히 일치하는지 확인
+                if (Math.abs(parseInt(fee.total_fee) - amount) === 0) {
+                    matchScore += 30;
+                }
+                
+                if (matchScore > 20) { // 최소 스코어 이상만 매칭 후보로 포함
+                    matches.push({
+                        fee,
+                        customer,
+                        score: matchScore,
+                        confidence: matchScore > 70 ? 'high' : matchScore > 40 ? 'medium' : 'low'
+                    });
+                }
+            }
+            
+            // 스코어 순으로 정렬
+            return matches.sort((a, b) => b.score - a.score);
+        }
+        
+        // 매칭 결과 표시
+        function displayMatchingResults() {
+            const matchingResults = document.getElementById('matchingResults');
+            const matchingContent = document.getElementById('matchingContent');
+            const matchedCount = document.getElementById('matchedCount');
+            const unmatchedCount = document.getElementById('unmatchedCount');
+            
+            const matched = this.matchingResults.filter(r => r.status === 'matched').length;
+            const unmatched = this.matchingResults.filter(r => r.status === 'unmatched').length;
+            
+            matchedCount.textContent = matched;
+            unmatchedCount.textContent = unmatched;
+            
+            let html = '';
+            
+            for (const result of this.matchingResults) {
+                const { transaction, matches, status, selectedMatch } = result;
+                
+                html += `
+                    <div class="match-item ${status}">
+                        <div class="match-info">
+                            <div class="bank-data">
+                                💰 ${formatCurrency(transaction.amount)} | 📅 ${transaction.date} | 📝 ${transaction.description}
+                            </div>
+                            ${status === 'matched' && selectedMatch ? `
+                                <div class="customer-data">
+                                    ✅ ${selectedMatch.customer.name} (${selectedMatch.customer.building_name} ${selectedMatch.customer.room_number}) 
+                                    - 청구액: ${formatCurrency(selectedMatch.fee.total_fee)}
+                                    ${selectedMatch.confidence === 'high' ? '🟢' : selectedMatch.confidence === 'medium' ? '🟡' : '🟠'} 
+                                    ${selectedMatch.confidence} 신뢰도
+                                </div>
+                            ` : `
+                                <div class="no-match">❌ 매칭되는 고객을 찾을 수 없습니다</div>
+                            `}
+                        </div>
+                        <div class="match-actions">
+                            ${status === 'matched' && selectedMatch ? `
+                                <button class="match-btn confirm-btn" onclick="confirmMatch(${this.matchingResults.indexOf(result)})">
+                                    ✅ 확정
+                                </button>
+                            ` : ''}
+                            ${matches.length > 1 ? `
+                                <button class="match-btn manual-btn" onclick="openManualMatch(${this.matchingResults.indexOf(result)})">
+                                    🔧 수동선택
+                                </button>
+                            ` : ''}
+                            <button class="match-btn skip-btn" onclick="skipMatch(${this.matchingResults.indexOf(result)})">
+                                ⏭️ 건너뛰기
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            matchingContent.innerHTML = html;
+            matchingResults.style.display = 'block';
+        }
+        
+        // 매칭 확정
+        async function confirmMatch(index) {
+            const result = matchingResults[index];
+            if (!result.selectedMatch) return;
+            
+            try {
+                await updatePaymentStatus(result.selectedMatch.fee, result.transaction);
+                result.status = 'confirmed';
+                
+                // UI 업데이트
+                const matchItem = document.querySelectorAll('.match-item')[index];
+                matchItem.style.background = '#d5f4e6';
+                matchItem.style.border = '2px solid #27ae60';
+                
+                const actions = matchItem.querySelector('.match-actions');
+                actions.innerHTML = '<span style="color: #27ae60; font-weight: 600;">✅ 처리완료</span>';
+                
+                // 관리비 목록 새로고침
+                await loadFees();
+                
+            } catch (error) {
+                alert('납부 처리 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+        
+        // 수동 매칭 모달 열기
+        function openManualMatch(index) {
+            const result = matchingResults[index];
+            currentManualMatch = { index, result };
+            
+            let html = `
+                <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px;">
+                    <h4>거래내역</h4>
+                    <div>💰 ${formatCurrency(result.transaction.amount)}</div>
+                    <div>📅 ${result.transaction.date}</div>
+                    <div>📝 ${result.transaction.description}</div>
+                </div>
+                
+                <h4 style="margin-bottom: 15px;">매칭 후보 선택:</h4>
+            `;
+            
+            result.matches.forEach((match, i) => {
+                html += `
+                    <div style="margin-bottom: 15px; padding: 15px; border: 1px solid #e1e8ed; border-radius: 8px;">
+                        <label style="cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="manualMatch" value="${i}" ${i === 0 ? 'checked' : ''}>
+                            <div>
+                                <div style="font-weight: 600;">${match.customer.name} (${match.customer.building_name} ${match.customer.room_number})</div>
+                                <div style="color: #666; font-size: 14px;">
+                                    청구액: ${formatCurrency(match.fee.total_fee)} | 
+                                    매칭점수: ${match.score}점 | 
+                                    신뢰도: ${match.confidence}
+                                </div>
+                            </div>
+                        </label>
+                    </div>
+                `;
+            });
+            
+            document.getElementById('manualMatchContent').innerHTML = html;
+            document.getElementById('manualMatchModal').style.display = 'block';
+        }
+        
+        // 수동 매칭 확정
+        function confirmManualMatch() {
+            const selectedIndex = document.querySelector('input[name="manualMatch"]:checked')?.value;
+            if (selectedIndex === undefined) {
+                alert('매칭할 고객을 선택해주세요.');
+                return;
+            }
+            
+            const { index, result } = currentManualMatch;
+            result.selectedMatch = result.matches[parseInt(selectedIndex)];
+            result.status = 'matched';
+            
+            document.getElementById('manualMatchModal').style.display = 'none';
+            displayMatchingResults();
+        }
+        
+        // 납부 상태 업데이트
+        async function updatePaymentStatus(fee, transaction) {
+            // 구글 시트 업데이트 로직
+            // 실제 구현에서는 Google Sheets API의 batchUpdate를 사용
+            
+            // 여기서는 시뮬레이션
+            console.log('납부 처리:', {
+                customer_id: fee.customer_id,
+                amount: transaction.amount,
+                date: transaction.date,
+                description: transaction.description
+            });
+            
+            // 실제 API 호출이 필요한 부분
+            // await updateGoogleSheet(fee, transaction);
+        }
+        
+        // 일괄 처리
+        async function processAllMatches() {
+            const confirmedMatches = matchingResults.filter(r => 
+                r.status === 'matched' && r.selectedMatch && r.status !== 'confirmed'
+            );
+            
+            if (confirmedMatches.length === 0) {
+                alert('처리할 매칭된 항목이 없습니다.');
+                return;
+            }
+            
+            if (!confirm(`${confirmedMatches.length}건의 납부를 일괄 처리하시겠습니까?`)) {
+                return;
+            }
+            
+            let processed = 0;
+            for (const result of confirmedMatches) {
+                try {
+                    await updatePaymentStatus(result.selectedMatch.fee, result.transaction);
+                    result.status = 'confirmed';
+                    processed++;
+                } catch (error) {
+                    console.error('처리 실패:', error);
+                }
+            }
+            
+            alert(`${processed}건이 성공적으로 처리되었습니다.`);
+            displayMatchingResults();
+            await loadFees();
+        }
+        
+        // 진행률 표시
+        function showProgress(percent, text) {
+            document.getElementById('uploadProgress').style.display = 'block';
+            document.getElementById('progressFill').style.width = percent + '%';
+            document.getElementById('progressFill').textContent = percent + '%';
+            document.getElementById('progressText').textContent = text;
+        }
+        
+        function hideProgress() {
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
+        
+        // 기존 함수들 (loadBuildings, loadCustomers, loadFees 등)은 이전 코드와 동일
+        
+        // 건물 목록 로드
+        async function loadBuildings() {
+            try {
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/buildings!A:G?key=${API_KEY}`
+                );
+                const data = await response.json();
+                
+                const selects = ['buildingFilter'];
+                selects.forEach(selectId => {
+                    const buildingSelect = document.getElementById(selectId);
+                    const currentValue = buildingSelect.value;
+                    buildingSelect.innerHTML = '<option value="">전체 건물</option>';
+                    
+                    if (data.values && data.values.length > 1) {
+                        data.values.slice(1).forEach(row => {
+                            const option = document.createElement('option');
+                            option.value = row[1];
+                            option.textContent = row[1];
+                            buildingSelect.appendChild(option);
+                        });
+                    }
+                    buildingSelect.value = currentValue;
+                });
+            } catch (error) {
+                console.error('건물 목록 로드 오류:', error);
+            }
+        }
+        
+        // 고객 목록 로드
+        async function loadCustomers() {
+            try {
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/customers!A:K?key=${API_KEY}`
+                );
+                const data = await response.json();
+                
+                if (data.values && data.values.length > 1) {
+                    allCustomers = data.values.slice(1).map(row => ({
+                        id: row[0] || '',
+                        name: row[1] || '',
+                        phone: row[2] || '',
+                        phone_last4: row[3] || '',
+                        building_name: row[4] || '',
+                        room_number: row[5] || '',
+                        status: row[8] || '거주중'
+                    }));
+                }
+            } catch (error) {
+                console.error('고객 목록 로드 오류:', error);
+            }
+        }
+        
+        // 관리비 목록 로드
+        async function loadFees() {
+            try {
+                const response = await fetch(
+                    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/monthly_fees!A:L?key=${API_KEY}`
+                );
+                const data = await response.json();
+                
+                if (data.values && data.values.length > 1) {
+                    allFees = data.values.slice(1).map(row => ({
+                        fee_id: row[0] || '',
+                        customer_id: row[1] || '',
+                        year_month: row[2] || '',
+                        base_fee: parseInt(row[3]) || 0,
+                        water_fee: parseInt(row[4]) || 0,
+                        unpaid_fee: parseInt(row[5]) || 0,
+                        total_fee: parseInt(row[6]) || 0,
+                        payment_status: row[7] || '미납',
+                        payment_date: row[8] || '',
+                        payment_amount: parseInt(row[9]) || 0,
+                        due_date: row[10] || '',
+                        created_date: row[11] || ''
+                    }));
+                    
+                    filteredFees = [...allFees];
+                    displayFees();
+                    updateSummary();
+                } else {
+                    displayNoData();
+                }
+                
+            } catch (error) {
+                console.error('관리비 목록 로드 오류:', error);
+                displayError('관리비 목록을 불러오는데 실패했습니다.');
+            }
+        }
+        
+        // 관리비 목록 표시
+        function displayFees() {
+            const tableContent = document.getElementById('tableContent');
+            
+            if (filteredFees.length === 0) {
+                displayNoData();
+                return;
+            }
+            
+            const tableHTML = `
+                <table class="fees-table">
+                    <thead>
+                        <tr>
+                            <th>고객명</th>
+                            <th>건물/호수</th>
+                            <th>전화번호</th>
+                            <th>청구년월</th>
+                            <th>기본관리비</th>
+                            <th>수도요금</th>
+                            <th>미납요금</th>
+                            <th>총액</th>
+                            <th>납부상태</th>
+                            <th>납부일</th>
+                            <th>관리</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${filteredFees.map(fee => {
+                            const customer = allCustomers.find(c => c.id === fee.customer_id);
+                            const customerName = customer ? customer.name : '알 수 없음';
+                            const customerPhone = customer ? customer.phone : '-';
+                            const building = customer ? customer.building_name : '-';
+                            const room = customer ? customer.room_number : '-';
+                            
+                            return `
+                                <tr>
+                                    <td>${customerName}</td>
+                                    <td>${building} ${room}</td>
+                                    <td>${customerPhone}</td>
+                                    <td>${fee.year_month}</td>
+                                    <td>${formatCurrency(fee.base_fee)}</td>
+                                    <td>${fee.water_fee > 0 ? formatCurrency(fee.water_fee) : '-'}</td>
+                                    <td>${fee.unpaid_fee > 0 ? formatCurrency(fee.unpaid_fee) : '-'}</td>
+                                    <td><strong>${formatCurrency(fee.total_fee)}</strong></td>
+                                    <td>
+                                        <span class="status-badge status-${fee.payment_status === '완납' ? 'paid' : fee.payment_status === '미납' ? 'unpaid' : 'partial'}">
+                                            ${fee.payment_status}
+                                        </span>
+                                    </td>
+                                    <td>${fee.payment_date || '-'}</td>
+                                    <td>
+                                        <div class="action-buttons">
+                                            <button class="action-btn btn-warning" onclick="openPaymentModal('${fee.fee_id}')">납부</button>
+                                            <button class="action-btn btn-primary" onclick="viewDetail('${fee.fee_id}')">상세</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            tableContent.innerHTML = tableHTML;
+        }
+        
+        // 요약 통계 업데이트
+        function updateSummary() {
+            const totalCount = filteredFees.length;
+            const paidCount = filteredFees.filter(f => f.payment_status === '완납').length;
+            const unpaidCount = filteredFees.filter(f => f.payment_status === '미납').length;
+            const totalAmount = filteredFees.reduce((sum, f) => sum + f.total_fee, 0);
+            const unpaidAmount = filteredFees.filter(f => f.payment_status === '미납').reduce((sum, f) => sum + f.total_fee, 0);
+            
+            document.getElementById('totalCount').textContent = totalCount;
+            document.getElementById('paidCount').textContent = paidCount;
+            document.getElementById('unpaidCount').textContent = unpaidCount;
+            document.getElementById('totalAmount').textContent = formatCurrency(totalAmount);
+            document.getElementById('unpaidAmount').textContent = formatCurrency(unpaidAmount);
+        }
+        
+        // 관리비 검색
+        function searchFees() {
+            const monthFilter = document.getElementById('monthFilter').value;
+            const buildingFilter = document.getElementById('buildingFilter').value;
+            const statusFilter = document.getElementById('statusFilter').value;
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            
+            filteredFees = allFees.filter(fee => {
+                const customer = allCustomers.find(c => c.id === fee.customer_id);
+                
+                // 월 필터
+                if (monthFilter && fee.year_month !== monthFilter) return false;
+                
+                // 건물 필터
+                if (buildingFilter && customer && customer.building_name !== buildingFilter) return false;
+                
+                // 상태 필터
+                if (statusFilter && fee.payment_status !== statusFilter) return false;
+                
+                // 검색어 필터
+                if (searchTerm) {
+                    const customerName = customer ? customer.name.toLowerCase() : '';
+                    const customerPhone = customer ? customer.phone : '';
+                    const building = customer ? customer.building_name.toLowerCase() : '';
+                    
+                    if (!customerName.includes(searchTerm) && 
+                        !customerPhone.includes(searchTerm) && 
+                        !building.includes(searchTerm)) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+            
+            displayFees();
+            updateSummary();
+        }
+        
+        // Excel 다운로드
+        function exportToExcel() {
+            const data = filteredFees.map(fee => {
+                const customer = allCustomers.find(c => c.id === fee.customer_id);
+                return {
+                    '고객명': customer ? customer.name : '알 수 없음',
+                    '건물명': customer ? customer.building_name : '-',
+                    '호수': customer ? customer.room_number : '-',
+                    '전화번호': customer ? customer.phone : '-',
+                    '청구년월': fee.year_month,
+                    '기본관리비': fee.base_fee,
+                    '수도요금': fee.water_fee,
+                    '미납요금': fee.unpaid_fee,
+                    '총액': fee.total_fee,
+                    '납부상태': fee.payment_status,
+                    '납부일': fee.payment_date,
+                    '납부금액': fee.payment_amount
+                };
+            });
+            
+            const worksheet = XLSX.utils.json_to_sheet(data);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '관리비내역');
+            
+            const fileName = `관리비내역_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+        }
+        
+        // 미매칭 내역 다운로드
+        function exportUnmatched() {
+            const unmatchedTransactions = matchingResults
+                .filter(r => r.status === 'unmatched')
+                .map(r => ({
+                    '날짜': r.transaction.date,
+                    '입금자명': r.transaction.description,
+                    '금액': r.transaction.amount,
+                    '잔액': r.transaction.balance,
+                    '처리상태': '미매칭'
+                }));
+            
+            if (unmatchedTransactions.length === 0) {
+                alert('미매칭 거래내역이 없습니다.');
+                return;
+            }
+            
+            const worksheet = XLSX.utils.json_to_sheet(unmatchedTransactions);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, '미매칭내역');
+            
+            const fileName = `미매칭내역_${new Date().toISOString().slice(0, 10)}.xlsx`;
+            XLSX.writeFile(workbook, fileName);
+        }
+        
+        // 통화 포맷 함수
+        function formatCurrency(amount) {
+            return new Intl.NumberFormat('ko-KR').format(amount) + '원';
+        }
+        
+        // 데이터 없음 표시
+        function displayNoData() {
+            const tableContent = document.getElementById('tableContent');
+            tableContent.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #666;">
+                    검색 결과가 없습니다.
+                </div>
+            `;
+        }
+        
+        // 오류 표시
+        function displayError(message) {
+            const tableContent = document.getElementById('tableContent');
+            tableContent.innerHTML = `
+                <div style="text-align: center; padding: 40px; color: #e74c3c;">
+                    ${message}
+                </div>
+            `;
+        }
+        
+        // 모달 닫기
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+        
+        // 매칭 건너뛰기
+        function skipMatch(index) {
+            const matchItem = document.querySelectorAll('.match-item')[index];
+            matchItem.style.opacity = '0.5';
+            const actions = matchItem.querySelector('.match-actions');
+            actions.innerHTML = '<span style="color: #95a5a6;">건너뜀</span>';
+        }
+        
+        // 납부 처리 모달 (기존 기능)
+        function openPaymentModal(feeId) {
+            // 기존 납부 처리 모달 로직
+            alert('수동 납부 처리 기능입니다. 거래내역 업로드를 통한 자동 매칭을 권장합니다.');
+        }
+        
+        // 상세 보기
+        function viewDetail(feeId) {
+            const fee = allFees.find(f => f.fee_id === feeId);
+            const customer = allCustomers.find(c => c.id === fee.customer_id);
+            
+            if (!fee || !customer) return;
+            
+            alert(`상세 정보:\n고객: ${customer.name}\n건물: ${customer.building_name}\n총액: ${formatCurrency(fee.total_fee)}`);
+        }
+    </script>
+</body>
+</html>

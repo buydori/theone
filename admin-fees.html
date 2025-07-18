@@ -1234,9 +1234,11 @@
         
         // [파일 처리 관련 함수들은 이전과 동일하므로 생략...]
         
-        // 파일 처리 메인 함수
+        // 파일 처리 메인 함수 (디버깅 강화)
         async function processFile(file) {
             if (!file) return;
+            
+            console.log('파일 처리 시작:', file.name, file.type, file.size);
             
             if (!isConnected) {
                 alert('구글 시트에 연결되지 않았습니다. 페이지를 새로고침하여 다시 시도해주세요.');
@@ -1250,6 +1252,8 @@
             ];
             
             const fileExtension = file.name.split('.').pop().toLowerCase();
+            console.log('파일 확장자:', fileExtension);
+            
             if (!allowedTypes.includes(file.type) && !['csv', 'xlsx', 'xls'].includes(fileExtension)) {
                 alert('지원하지 않는 파일 형식입니다. CSV 또는 Excel 파일(.xlsx, .xls)을 업로드해주세요.');
                 return;
@@ -1262,10 +1266,20 @@
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
                 const data = await readFile(file);
+                console.log('파일 읽기 완료, 데이터 타입:', typeof data);
+                
                 showProgress(20, '거래내역을 분석하는 중...');
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
                 bankTransactions = parseBankData(data, file.name);
+                console.log('파싱된 거래내역:', bankTransactions.length, '건');
+                
+                if (bankTransactions.length === 0) {
+                    hideProgress();
+                    alert('파일에서 유효한 거래내역을 찾을 수 없습니다.\n\n파일 형식을 확인해주세요:\n- 첫 번째 행: 헤더\n- 날짜, 거래내용, 금액 컬럼 필요\n- 입금 거래만 처리됩니다');
+                    return;
+                }
+                
                 showProgress(50, `${bankTransactions.length}건의 입금 거래를 발견했습니다...`);
                 await new Promise(resolve => setTimeout(resolve, 500));
                 
@@ -1284,7 +1298,7 @@
             } catch (error) {
                 hideProgress();
                 console.error('파일 처리 오류:', error);
-                alert('파일 처리 중 오류가 발생했습니다: ' + error.message);
+                alert('파일 처리 중 오류가 발생했습니다.\n\n오류 내용: ' + error.message + '\n\n파일 형식을 확인하거나 다른 파일로 시도해주세요.');
             }
         }
         
@@ -1333,46 +1347,84 @@
             });
         }
         
-        // 은행 데이터 파싱
+        // 은행 데이터 파싱 (강화된 버전)
         function parseBankData(data, fileName) {
             let transactions = [];
             
             try {
+                console.log('파일 파싱 시작:', fileName);
+                console.log('데이터 타입:', typeof data);
+                console.log('데이터 샘플:', Array.isArray(data) ? data.slice(0, 3) : data.substring(0, 200));
+                
                 if (typeof data === 'string') {
                     transactions = parseCSVData(data);
-                } else {
+                } else if (Array.isArray(data)) {
                     transactions = parseExcelData(data);
+                } else {
+                    throw new Error('지원하지 않는 데이터 형식입니다.');
                 }
                 
-                const validTransactions = transactions.filter(t => 
-                    t && 
-                    t.amount > 0 && 
-                    t.description && 
-                    t.description.trim() !== '' &&
-                    t.date &&
-                    (t.type === '입금' || t.amount > 0)
-                );
+                console.log('파싱된 전체 거래:', transactions.length);
+                
+                // 입금 거래 필터링 (더 유연한 조건)
+                const validTransactions = transactions.filter(t => {
+                    if (!t) return false;
+                    
+                    const hasAmount = t.amount && t.amount > 0;
+                    const hasDescription = t.description && t.description.trim() !== '';
+                    const hasDate = t.date && t.date !== '';
+                    const isDeposit = t.type === '입금' || t.amount > 0 || !String(t.originalAmount || '').includes('-');
+                    
+                    console.log('거래 검증:', {
+                        description: t.description,
+                        amount: t.amount,
+                        date: t.date,
+                        type: t.type,
+                        hasAmount,
+                        hasDescription,
+                        hasDate,
+                        isDeposit,
+                        valid: hasAmount && hasDescription && hasDate && isDeposit
+                    });
+                    
+                    return hasAmount && hasDescription && hasDate && isDeposit;
+                });
                 
                 console.log(`전체 거래: ${transactions.length}건, 유효한 입금: ${validTransactions.length}건`);
+                
+                if (validTransactions.length === 0) {
+                    console.warn('유효한 거래내역이 없습니다. 파일 형식을 확인해주세요.');
+                    console.log('첫 번째 거래 샘플:', transactions[0]);
+                }
+                
                 return validTransactions;
                 
             } catch (error) {
+                console.error('파싱 오류:', error);
                 throw new Error('거래내역 파싱 중 오류: ' + error.message);
             }
         }
         
-        // CSV 데이터 파싱
+        // CSV 데이터 파싱 (강화된 버전)
         function parseCSVData(csvText) {
             const lines = csvText.split('\n').filter(line => line.trim());
             if (lines.length < 2) throw new Error('CSV 파일에 충분한 데이터가 없습니다.');
             
+            console.log('CSV 라인 수:', lines.length);
+            console.log('첫 번째 라인 (헤더):', lines[0]);
+            console.log('두 번째 라인 (데이터):', lines[1]);
+            
             const transactions = [];
-            const header = lines[0].split(',');
+            const header = lines[0];
+            
+            // 헤더 분석 (한국 은행들의 다양한 형식 지원)
+            const columnMap = analyzeCSVHeaders(header.split(','));
+            console.log('컬럼 매핑:', columnMap);
             
             for (let i = 1; i < lines.length; i++) {
                 const values = parseCSVLine(lines[i]);
                 if (values.length >= 3) {
-                    const transaction = extractTransactionFromRow(values);
+                    const transaction = extractTransactionFromRow(values, columnMap, i + 1);
                     if (transaction) {
                         transactions.push(transaction);
                     }
@@ -1380,6 +1432,37 @@
             }
             
             return transactions;
+        }
+        
+        // CSV 헤더 분석 (한국 은행 형식 지원)
+        function analyzeCSVHeaders(headers) {
+            const map = { date: 0, description: 1, amount: 2, balance: 3 }; // 기본값
+            
+            headers.forEach((header, index) => {
+                const h = header.toLowerCase().trim().replace(/"/g, '');
+                
+                // 날짜 컬럼
+                if (h.includes('날짜') || h.includes('일자') || h.includes('date') || 
+                    h.includes('거래일') || h.includes('처리일')) {
+                    map.date = index;
+                }
+                // 거래내용 컬럼  
+                else if (h.includes('내용') || h.includes('적요') || h.includes('description') || 
+                         h.includes('거래내용') || h.includes('상대방') || h.includes('입금자')) {
+                    map.description = index;
+                }
+                // 금액 컬럼
+                else if (h.includes('금액') || h.includes('amount') || h.includes('출금') || 
+                         h.includes('입금') || h.includes('거래금액')) {
+                    if (!map.amount || h.includes('입금')) map.amount = index;
+                }
+                // 잔액 컬럼
+                else if (h.includes('잔액') || h.includes('balance') || h.includes('잔고')) {
+                    map.balance = index;
+                }
+            });
+            
+            return map;
         }
         
         // CSV 라인 파싱
@@ -1405,18 +1488,25 @@
             return result;
         }
         
-        // Excel 데이터 파싱
+        // Excel 데이터 파싱 (강화된 버전)
         function parseExcelData(data) {
             if (!data || data.length < 2) {
                 throw new Error('Excel 파일에 충분한 데이터가 없습니다.');
             }
             
+            console.log('Excel 데이터 행 수:', data.length);
+            console.log('첫 번째 행 (헤더):', data[0]);
+            console.log('두 번째 행 (데이터):', data[1]);
+            
             const transactions = [];
+            const headers = data[0] || [];
+            const columnMap = analyzeExcelHeaders(headers);
+            console.log('Excel 컬럼 매핑:', columnMap);
             
             for (let i = 1; i < data.length; i++) {
                 const row = data[i] || [];
                 if (row.length >= 3) {
-                    const transaction = extractTransactionFromRow(row);
+                    const transaction = extractTransactionFromRow(row, columnMap, i + 1);
                     if (transaction) {
                         transactions.push(transaction);
                     }
@@ -1426,41 +1516,139 @@
             return transactions;
         }
         
-        // 행에서 거래내역 추출
-        function extractTransactionFromRow(row) {
+        // Excel 헤더 분석 (한국 은행 형식 지원)
+        function analyzeExcelHeaders(headers) {
+            const map = { date: 0, description: 1, amount: 2, balance: 3 }; // 기본값
+            
+            headers.forEach((header, index) => {
+                if (!header) return;
+                const h = String(header).toLowerCase().trim();
+                
+                // 날짜 컬럼
+                if (h.includes('날짜') || h.includes('일자') || h.includes('date') || 
+                    h.includes('거래일') || h.includes('처리일')) {
+                    map.date = index;
+                }
+                // 거래내용 컬럼
+                else if (h.includes('내용') || h.includes('적요') || h.includes('description') || 
+                         h.includes('거래내용') || h.includes('상대방') || h.includes('입금자')) {
+                    map.description = index;
+                }
+                // 금액 컬럼
+                else if (h.includes('금액') || h.includes('amount') || h.includes('출금') || 
+                         h.includes('입금') || h.includes('거래금액')) {
+                    if (!map.amount || h.includes('입금')) map.amount = index;
+                }
+                // 잔액 컬럼
+                else if (h.includes('잔액') || h.includes('balance') || h.includes('잔고')) {
+                    map.balance = index;
+                }
+            });
+            
+            return map;
+        }
+        
+        // 행에서 거래내역 추출 (강화된 버전)
+        function extractTransactionFromRow(row, columnMap = null, rowNum = 0) {
             try {
-                const date = row[0];
-                const description = row[1];
-                const amountValue = row[2];
-                const balanceValue = row[3];
+                // 컬럼 매핑이 없으면 기본값 사용
+                const map = columnMap || { date: 0, description: 1, amount: 2, balance: 3 };
+                
+                const date = row[map.date];
+                const description = row[map.description];
+                const amountValue = row[map.amount];
+                const balanceValue = row[map.balance] || 0;
+                
+                console.log(`행 ${rowNum} 파싱:`, {
+                    date,
+                    description,
+                    amountValue,
+                    balanceValue,
+                    map
+                });
+                
+                // 빈 행 스킵
+                if (!date && !description && !amountValue) {
+                    return null;
+                }
+                
+                // 날짜와 설명은 필수
+                if (!date || !description) {
+                    console.log(`행 ${rowNum} 스킵: 날짜 또는 설명 없음`);
+                    return null;
+                }
                 
                 const amount = parseAmount(amountValue);
                 const balance = parseAmount(balanceValue);
                 
-                if (!date || !description) return null;
+                console.log(`행 ${rowNum} 금액 파싱: ${amountValue} → ${amount}`);
                 
-                return {
+                // 금액이 0이거나 음수면 스킵 (출금)
+                if (amount <= 0) {
+                    console.log(`행 ${rowNum} 스킵: 금액 0 이하 (${amount})`);
+                    return null;
+                }
+                
+                const transaction = {
                     date: formatDate(date),
                     description: String(description).trim(),
-                    amount: Math.abs(amount),
+                    amount: amount,
                     balance: balance,
-                    type: amount > 0 ? '입금' : '출금',
-                    raw: row.join(',')
+                    type: '입금',
+                    originalAmount: amountValue,
+                    raw: row.join(','),
+                    rowNumber: rowNum
                 };
+                
+                console.log(`행 ${rowNum} 거래 생성:`, transaction);
+                return transaction;
+                
             } catch (error) {
-                console.warn('행 파싱 실패:', error);
+                console.warn(`행 ${rowNum} 파싱 실패:`, error, row);
                 return null;
             }
         }
         
-        // 금액 파싱
+        // 금액 파싱 (강화된 버전)
         function parseAmount(amountStr) {
             if (!amountStr) return 0;
             
-            const cleanAmount = String(amountStr).replace(/[^0-9.-]/g, '');
+            console.log('금액 파싱 시작:', amountStr);
+            
+            let cleanAmount = String(amountStr);
+            
+            // 1. 공백 제거
+            cleanAmount = cleanAmount.trim();
+            
+            // 2. 빈 값 체크
+            if (cleanAmount === '' || cleanAmount === '-') return 0;
+            
+            // 3. 쉼표 제거
+            cleanAmount = cleanAmount.replace(/,/g, '');
+            
+            // 4. 원화 표시 제거
+            cleanAmount = cleanAmount.replace(/원$/g, '');
+            
+            // 5. 괄호로 둘러싸인 음수 처리 (123) → -123
+            if (cleanAmount.startsWith('(') && cleanAmount.endsWith(')')) {
+                cleanAmount = '-' + cleanAmount.slice(1, -1);
+            }
+            
+            // 6. 숫자와 소수점, 마이너스만 남기기
+            cleanAmount = cleanAmount.replace(/[^0-9.-]/g, '');
+            
+            // 7. 여러 개의 마이너스나 소수점 처리
+            const parts = cleanAmount.split('.');
+            if (parts.length > 2) {
+                cleanAmount = parts[0] + '.' + parts.slice(1).join('');
+            }
+            
             const parsed = parseFloat(cleanAmount) || 0;
             
-            return parsed;
+            console.log(`금액 파싱 결과: "${amountStr}" → "${cleanAmount}" → ${parsed}`);
+            
+            // 입금은 항상 양수로 처리
+            return Math.abs(parsed);
         }
         
         // 날짜 포맷팅
@@ -1627,13 +1815,13 @@
         
         // 매칭 결과 표시
         function displayMatchingResults() {
-            const matchingResults = document.getElementById('matchingResults');
+            const matchingResultsContainer = document.getElementById('matchingResults');
             const matchingContent = document.getElementById('matchingContent');
             
-            const matched = this.matchingResults.filter(r => r.status === 'matched').length;
-            const unmatched = this.matchingResults.filter(r => r.status === 'unmatched').length;
-            const confirmed = this.matchingResults.filter(r => r.processed).length;
-            const pending = this.matchingResults.filter(r => r.status === 'matched' && !r.processed).length;
+            const matched = matchingResults.filter(r => r.status === 'matched').length;
+            const unmatched = matchingResults.filter(r => r.status === 'unmatched').length;
+            const confirmed = matchingResults.filter(r => r.processed).length;
+            const pending = matchingResults.filter(r => r.status === 'matched' && !r.processed).length;
             
             document.getElementById('matchedCount').textContent = matched;
             document.getElementById('unmatchedCount').textContent = unmatched;
@@ -1642,7 +1830,7 @@
             
             let html = '';
             
-            this.matchingResults.forEach((result, index) => {
+            matchingResults.forEach((result, index) => {
                 const { transaction, matches, status, selectedMatch, processed } = result;
                 
                 const confidenceEmoji = getConfidenceEmoji(selectedMatch?.confidence);
@@ -1691,7 +1879,7 @@
             });
             
             matchingContent.innerHTML = html;
-            matchingResults.style.display = 'block';
+            matchingResultsContainer.style.display = 'block';
         }
         
         // 신뢰도 이모지 및 텍스트

@@ -1354,13 +1354,43 @@
             }
         }
         
-        // 중복 확인 없이 파싱 (중복 여부 확인용)
+        // 중복 확인 없이 파싱 (중복 여부 확인용) - 카카오뱅크 지원
         async function parseBankDataWithoutDuplicateCheck(data, fileName) {
             try {
                 const isKakaoBank = detectKakaoBank(data, fileName);
                 
                 if (isKakaoBank && Array.isArray(data)) {
-                    return parseKakaoBankData(data);
+                    // 카카오뱅크는 강제로 특정 구조로 파싱
+                    const transactions = [];
+                    
+                    // 11행부터 시작 (헤더가 10행에 있다고 가정)
+                    for (let i = 11; i < data.length; i++) {
+                        const row = data[i];
+                        if (!row || !Array.isArray(row) || row.length < 4) continue;
+                        
+                        const dateCell = String(row[1] || '').trim();
+                        const typeCell = String(row[2] || '').trim();
+                        const amountCell = String(row[3] || '').trim();
+                        
+                        // 유효한 카카오뱅크 거래인지 확인
+                        if (dateCell.match(/\d{4}\.\d{2}\.\d{2}/) && 
+                            (typeCell === '입금' || typeCell === '출금') &&
+                            amountCell.match(/^-?[\d,]+$/)) {
+                            
+                            if (typeCell === '입금') {
+                                transactions.push({
+                                    date: dateCell.replace(/\./g, '-').substring(0, 10),
+                                    description: String(row[6] || row[5] || '일반입금').trim(),
+                                    amount: Math.abs(parseFloat(amountCell.replace(/,/g, '')) || 0),
+                                    type: '입금'
+                                });
+                            }
+                        }
+                    }
+                    
+                    console.log('중복 확인용 카카오뱅크 파싱:', transactions.length, '건');
+                    return transactions;
+                    
                 } else if (typeof data === 'string') {
                     return parseCSVData(data);
                 } else if (Array.isArray(data)) {
@@ -1369,6 +1399,7 @@
                 
                 return [];
             } catch (error) {
+                console.error('중복 확인용 파싱 오류:', error);
                 return [];
             }
         }
@@ -1481,7 +1512,7 @@
             return map;
         }
         
-        // Excel 헤더 분석 (강화된 버전)
+        // Excel 헤더 분석 (카카오뱅크 구조 지원)
         function analyzeExcelHeaders(headers) {
             const map = { 
                 date: 0, 
@@ -1500,6 +1531,33 @@
             
             console.log('헤더 분석 중:', headers);
             
+            // 카카오뱅크 특화 헤더 감지
+            let isKakaoBankFormat = false;
+            
+            for (let i = 0; i < headers.length; i++) {
+                const header = String(headers[i] || '').toLowerCase().trim();
+                
+                if (header.includes('거래일시') && header.includes('구분') && 
+                    (i + 1 < headers.length && String(headers[i + 1]).includes('구분'))) {
+                    isKakaoBankFormat = true;
+                    console.log('카카오뱅크 헤더 형식 감지됨');
+                    break;
+                }
+            }
+            
+            if (isKakaoBankFormat) {
+                // 카카오뱅크 고정 매핑 사용
+                map.date = 1;        // 거래일시
+                map.type = 2;        // 구분
+                map.amount = 3;      // 거래금액  
+                map.balance = 4;     // 거래 후 잔액
+                map.description = 6; // 내용
+                
+                console.log('카카오뱅크 전용 매핑 적용:', map);
+                return map;
+            }
+            
+            // 일반 Excel 헤더 분석
             headers.forEach((header, index) => {
                 if (!header) return;
                 const h = String(header).toLowerCase().trim();
@@ -1975,24 +2033,31 @@
             
             const transactions = [];
             
-            // 1단계: 헤더 행 찾기
+            // 1단계: 헤더 행 찾기 (더 정확한 헤더 감지)
             let headerRow = -1;
-            const headerKeywords = ['날짜', '일자', '거래일', '입금', '출금', '금액', '잔액', '내용', '적요', '상대방'];
+            const headerKeywords = ['거래일시', '일시', '입금', '출금', '금액', '잔액', '내용', '적요', '상대방', '구분'];
             
-            for (let i = 0; i < Math.min(10, data.length); i++) {
+            for (let i = 0; i < Math.min(15, data.length); i++) {
                 const row = data[i] || [];
                 let headerCount = 0;
+                let hasMainKeywords = false;
                 
                 for (let j = 0; j < Math.min(10, row.length); j++) {
-                    const cell = String(row[j] || '').toLowerCase();
+                    const cell = String(row[j] || '').toLowerCase().trim();
                     if (headerKeywords.some(keyword => cell.includes(keyword))) {
                         headerCount++;
+                        
+                        // 핵심 키워드 확인 (거래일시, 금액 등)
+                        if (cell.includes('거래일시') || cell.includes('거래금액') || cell.includes('금액')) {
+                            hasMainKeywords = true;
+                        }
                     }
                 }
                 
-                if (headerCount >= 2) { // 2개 이상의 헤더 키워드
+                // 3개 이상의 헤더 키워드가 있고 핵심 키워드가 포함되어 있으면 헤더로 판단
+                if (headerCount >= 3 && hasMainKeywords) {
                     headerRow = i;
-                    console.log(`헤더 행 발견: ${headerRow}번째 행`, row);
+                    console.log(`Excel 헤더 행 발견: ${headerRow}번째 행`, row);
                     break;
                 }
             }
@@ -2075,41 +2140,42 @@
                     }
                 }
                 
-                // 2단계: 데이터 시작 행 찾기 (실제 거래 데이터)
+                // 2단계: 데이터 시작 행 찾기 (실제 거래 데이터) - 카카오뱅크 구조에 맞게 수정
                 let startRow = -1;
                 const startSearchFrom = headerRow >= 0 ? headerRow + 1 : 0;
                 
                 for (let i = startSearchFrom; i < Math.min(50, data.length); i++) {
                     const row = data[i];
-                    if (!row || !Array.isArray(row) || row.length < 3) continue;
+                    if (!row || !Array.isArray(row) || row.length < 4) continue;
                     
-                    // 날짜 형식 패턴들
+                    // 카카오뱅크는 두 번째 컬럼(인덱스 1)에 거래일시가 있음
+                    const dateCell = String(row[1] || '');
+                    const typeCell = String(row[2] || '');
+                    const amountCell = String(row[3] || '');
+                    
+                    console.log(`행 ${i} 검사: 날짜="${dateCell}", 구분="${typeCell}", 금액="${amountCell}"`);
+                    
+                    // 날짜 형식 패턴 확인 (카카오뱅크 형식)
                     const datePatterns = [
-                        /\d{4}\.\d{2}\.\d{2}(\s+\d{2}:\d{2}:\d{2})?/,  // 2025.06.10 또는 2025.06.10 12:22:56
-                        /\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?/,   // 2025-06-10 또는 2025-06-10 12:22:56
-                        /\d{2}\/\d{2}\/\d{4}/,                        // 06/10/2025
-                        /\d{4}년\s*\d{1,2}월\s*\d{1,2}일/              // 2025년 6월 10일
+                        /\d{4}\.\d{2}\.\d{2}(\s+\d{2}:\d{2}:\d{2})?/,  // 2025.06.10 12:22:56
+                        /\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?/,   // 2025-06-10 12:22:56
                     ];
                     
-                    // 첫 번째 컬럼에서 날짜 패턴 찾기
-                    const firstCell = String(row[0] || '');
-                    const hasDatePattern = datePatterns.some(pattern => pattern.test(firstCell));
+                    const hasDatePattern = datePatterns.some(pattern => pattern.test(dateCell));
+                    console.log(`행 ${i} 날짜 패턴 확인:`, hasDatePattern);
                     
                     if (hasDatePattern) {
-                        // 추가 검증: 금액 패턴이 있는지 확인
-                        let hasAmountPattern = false;
-                        for (let j = 1; j < Math.min(row.length, 8); j++) {
-                            const cell = String(row[j] || '');
-                            // 금액 패턴 (숫자, 쉼표, 마이너스)
-                            if (/[\d,]+/.test(cell) && cell.replace(/[,\s]/g, '').length >= 2) {
-                                hasAmountPattern = true;
-                                break;
-                            }
-                        }
+                        // 입출금 구분 확인
+                        const hasTypePattern = typeCell.includes('입금') || typeCell.includes('출금');
+                        console.log(`행 ${i} 입출금 구분 확인:`, hasTypePattern);
                         
-                        if (hasAmountPattern) {
+                        // 금액 패턴 확인 (숫자, 쉼표, 마이너스 포함)
+                        const hasAmountPattern = /^-?[\d,]+$/.test(amountCell.replace(/\s/g, '')) && amountCell.replace(/[,\s-]/g, '').length >= 1;
+                        console.log(`행 ${i} 금액 패턴 확인:`, hasAmountPattern, `원본: "${amountCell}"`);
+                        
+                        if (hasTypePattern && hasAmountPattern) {
                             startRow = i;
-                            console.log(`데이터 시작 행 발견: ${startRow}번째 행`, row);
+                            console.log(`✅ 데이터 시작 행 발견: ${startRow}번째 행`, row);
                             break;
                         }
                     }
@@ -2126,14 +2192,31 @@
                 const columnMap = analyzeKakaoBankColumns(data[headerRow] || sampleRow, sampleRow);
                 console.log('카카오뱅크 컬럼 매핑:', columnMap);
                 
-                // 4단계: 거래내역 파싱
+                // 4단계: 거래내역 파싱 (추가 디버깅)
                 for (let i = startRow; i < data.length; i++) {
                     const row = data[i];
-                    if (!row || !Array.isArray(row) || row.length < 3) continue;
+                    if (!row || !Array.isArray(row) || row.length < 4) {
+                        console.log(`행 ${i} 스킵: 데이터 부족`, row);
+                        continue;
+                    }
+                    
+                    // 샘플 로그 (처음 5개 행만)
+                    if (i - startRow < 5) {
+                        console.log(`행 ${i} 상세 데이터:`, {
+                            전체: row,
+                            날짜: row[1],
+                            구분: row[2],
+                            금액: row[3],
+                            잔액: row[4],
+                            구분2: row[5],
+                            내용: row[6]
+                        });
+                    }
                     
                     const transaction = parseKakaoBankRow(row, i + 1, columnMap);
                     if (transaction) {
                         transactions.push(transaction);
+                        console.log(`행 ${i} 거래 추가됨:`, transaction.date, transaction.amount, transaction.description);
                     }
                 }
                 
@@ -2160,56 +2243,73 @@
             }
         }
         
-        // 카카오뱅크 컬럼 분석
+        // 카카오뱅크 컬럼 분석 (실제 구조에 맞게 수정)
         function analyzeKakaoBankColumns(headerRow, sampleRow) {
-            const map = { date: 0, type: 1, amount: 2, balance: 3, category: 4, description: 5 };
+            // 카카오뱅크 고정 컬럼 매핑 (실제 파일 구조 기준)
+            const map = { 
+                date: 1,        // B열: 거래일시
+                type: 2,        // C열: 구분 (입금/출금)
+                amount: 3,      // D열: 거래금액
+                balance: 4,     // E열: 거래 후 잔액
+                category: 5,    // F열: 거래구분
+                description: 6  // G열: 내용
+            };
             
-            // 헤더가 있으면 헤더 기준으로 분석
+            console.log('카카오뱅크 고정 컬럼 매핑 사용:', map);
+            
+            // 헤더가 있으면 검증
             if (headerRow && Array.isArray(headerRow)) {
-                headerRow.forEach((header, index) => {
-                    const h = String(header || '').toLowerCase().trim();
-                    
-                    if (h.includes('거래일시') || h.includes('일시') || h.includes('날짜')) {
-                        map.date = index;
-                    } else if (h.includes('입금') && h.includes('출금')) {
-                        map.type = index;
-                    } else if (h.includes('거래금액') || h.includes('금액')) {
-                        map.amount = index;
-                    } else if (h.includes('잔액')) {
-                        map.balance = index;
-                    } else if (h.includes('거래구분') || h.includes('구분')) {
-                        map.category = index;
-                    } else if (h.includes('내용') || h.includes('적요') || h.includes('메모')) {
-                        map.description = index;
-                    }
-                });
+                console.log('헤더 검증:', headerRow);
+                
+                // 헤더 확인
+                if (headerRow[1] && String(headerRow[1]).includes('거래일시')) {
+                    console.log('✅ 거래일시 컬럼 확인됨');
+                }
+                if (headerRow[2] && String(headerRow[2]).includes('구분')) {
+                    console.log('✅ 구분 컬럼 확인됨');
+                }
+                if (headerRow[3] && String(headerRow[3]).includes('거래금액')) {
+                    console.log('✅ 거래금액 컬럼 확인됨');
+                }
             }
             
             // 샘플 데이터로 추가 검증
             if (sampleRow && Array.isArray(sampleRow)) {
                 console.log('샘플 행으로 컬럼 검증:', sampleRow);
                 
-                // 첫 번째 컬럼이 날짜가 아니라면 다른 컬럼에서 날짜 찾기
-                const firstCell = String(sampleRow[0] || '');
-                if (!/\d{4}[.\-/년]/.test(firstCell)) {
-                    for (let i = 0; i < Math.min(5, sampleRow.length); i++) {
-                        const cell = String(sampleRow[i] || '');
-                        if (/\d{4}[.\-/년]/.test(cell)) {
-                            map.date = i;
-                            break;
-                        }
-                    }
+                const dateCell = String(sampleRow[1] || '');
+                const typeCell = String(sampleRow[2] || '');
+                const amountCell = String(sampleRow[3] || '');
+                
+                console.log('샘플 데이터 분석:');
+                console.log('- 날짜 셀 (컬럼 1):', dateCell);
+                console.log('- 구분 셀 (컬럼 2):', typeCell);
+                console.log('- 금액 셀 (컬럼 3):', amountCell);
+                
+                // 날짜 패턴 확인
+                if (dateCell.match(/\d{4}\.\d{2}\.\d{2}/)) {
+                    console.log('✅ 날짜 패턴 확인됨');
+                }
+                
+                // 입출금 구분 확인
+                if (typeCell.includes('입금') || typeCell.includes('출금')) {
+                    console.log('✅ 입출금 구분 확인됨');
+                }
+                
+                // 금액 패턴 확인 (숫자와 쉼표)
+                if (amountCell.match(/[\d,]+/)) {
+                    console.log('✅ 금액 패턴 확인됨');
                 }
             }
             
             return map;
         }
         
-        // 카카오뱅크 개별 행 파싱 (컬럼 매핑 지원)
+        // 카카오뱅크 개별 행 파싱 (수정된 컬럼 매핑 적용)
         function parseKakaoBankRow(row, rowNum, columnMap = null) {
             try {
-                // 기본 컬럼 매핑 (컬럼 매핑이 없으면 기본값 사용)
-                const map = columnMap || { date: 0, type: 1, amount: 2, balance: 3, category: 4, description: 5 };
+                // 카카오뱅크 고정 컬럼 매핑 사용
+                const map = columnMap || { date: 1, type: 2, amount: 3, balance: 4, category: 5, description: 6 };
                 
                 const dateTime = row[map.date];           // 거래일시
                 const type = row[map.type];               // 입금/출금
@@ -2222,27 +2322,24 @@
                     dateTime, type, amount, balance, category, description
                 });
                 
-                // 빈 행 스킵
-                if (!dateTime && !amount) {
+                // 빈 행 스킵 (모든 필수 값이 비어있으면)
+                if (!dateTime && !type && !amount) {
                     console.log(`행 ${rowNum} 스킵: 빈 행`);
                     return null;
                 }
                 
                 // 날짜 유효성 검사
-                const dateStr = String(dateTime || '');
-                if (!dateStr.match(/\d{4}[.\-/년]/) && !dateStr.match(/\d{2}\/\d{2}\/\d{4}/)) {
+                const dateStr = String(dateTime || '').trim();
+                if (!dateStr || !dateStr.match(/\d{4}\.\d{2}\.\d{2}/)) {
                     console.log(`행 ${rowNum} 스킵: 유효하지 않은 날짜 (${dateStr})`);
                     return null;
                 }
                 
-                // 입금 거래 확인 (여러 패턴 지원)
+                // 입금 거래 확인
                 const typeStr = String(type || '').trim().toLowerCase();
-                const isDeposit = typeStr.includes('입금') || 
-                                typeStr.includes('입') || 
-                                typeStr === '+' ||
-                                (!typeStr && amount && parseKakaoBankAmount(amount) > 0); // 타입이 없으면 금액이 양수인지 확인
+                const isDeposit = typeStr.includes('입금') || typeStr === '입';
                 
-                if (!isDeposit && typeStr) {
+                if (!isDeposit) {
                     console.log(`행 ${rowNum} 스킵: 입금이 아님 (${typeStr})`);
                     return null;
                 }
@@ -2266,6 +2363,12 @@
                 // 거래일시 파싱
                 const formattedDate = formatKakaoBankDate(dateTime);
                 
+                // 날짜가 제대로 파싱되지 않으면 스킵
+                if (!formattedDate || formattedDate === '') {
+                    console.log(`행 ${rowNum} 스킵: 날짜 파싱 실패 (${dateTime})`);
+                    return null;
+                }
+                
                 // 중복 방지를 위한 고유 키 생성
                 const uniqueKey = generateTransactionKey(formattedDate, parsedAmount, transactionDesc);
                 
@@ -2283,7 +2386,7 @@
                     source: 'kakaobank'
                 };
                 
-                console.log(`행 ${rowNum} 카카오뱅크 거래 생성:`, transaction);
+                console.log(`행 ${rowNum} 카카오뱅크 거래 생성 성공:`, transaction);
                 return transaction;
                 
             } catch (error) {
@@ -2308,18 +2411,27 @@
             return Math.abs(parsed);
         }
         
-        // 카카오뱅크 날짜 포맷팅 (다양한 형식 지원)
+        // 카카오뱅크 날짜 포맷팅 (빈 값 처리 강화)
         function formatKakaoBankDate(dateTimeStr) {
-            if (!dateTimeStr) return '';
+            if (!dateTimeStr || dateTimeStr === '' || dateTimeStr === null || dateTimeStr === undefined) {
+                console.log('카카오뱅크 날짜 값이 비어있음:', dateTimeStr);
+                return '';
+            }
             
             const dateStr = String(dateTimeStr).trim();
-            console.log('날짜 포맷팅 시작:', dateStr);
+            console.log('카카오뱅크 날짜 포맷팅 시작:', dateStr);
+            
+            // 빈 문자열이나 의미없는 값 체크
+            if (!dateStr || dateStr === '' || dateStr === '-' || dateStr === 'null') {
+                console.log('유효하지 않은 카카오뱅크 날짜 문자열:', dateStr);
+                return '';
+            }
             
             // 패턴 1: 2025.06.10 12:22:56 또는 2025.06.10
             let match = dateStr.match(/(\d{4})\.(\d{2})\.(\d{2})/);
             if (match) {
                 const result = `${match[1]}-${match[2]}-${match[3]}`;
-                console.log('패턴 1 매칭:', result);
+                console.log('카카오뱅크 패턴 1 매칭:', result);
                 return result;
             }
             
@@ -2327,7 +2439,7 @@
             match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
             if (match) {
                 const result = `${match[1]}-${match[2]}-${match[3]}`;
-                console.log('패턴 2 매칭:', result);
+                console.log('카카오뱅크 패턴 2 매칭:', result);
                 return result;
             }
             
@@ -2337,7 +2449,7 @@
                 const month = match[1].padStart(2, '0');
                 const day = match[2].padStart(2, '0');
                 const result = `${match[3]}-${month}-${day}`;
-                console.log('패턴 3 매칭:', result);
+                console.log('카카오뱅크 패턴 3 매칭:', result);
                 return result;
             }
             
@@ -2347,14 +2459,14 @@
                 const month = match[2].padStart(2, '0');
                 const day = match[3].padStart(2, '0');
                 const result = `${match[1]}-${month}-${day}`;
-                console.log('패턴 4 매칭:', result);
+                console.log('카카오뱅크 패턴 4 매칭:', result);
                 return result;
             }
             
             // 패턴 5: 20250610 (숫자 8자리)
             if (/^\d{8}$/.test(dateStr)) {
                 const result = `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
-                console.log('패턴 5 매칭:', result);
+                console.log('카카오뱅크 패턴 5 매칭:', result);
                 return result;
             }
             
@@ -2363,7 +2475,7 @@
                 try {
                     const date = new Date((parseInt(dateStr) - 25569) * 86400 * 1000);
                     const result = date.toISOString().split('T')[0];
-                    console.log('패턴 6 매칭 (Excel 시리얼):', result);
+                    console.log('카카오뱅크 패턴 6 매칭 (Excel 시리얼):', result);
                     return result;
                 } catch (e) {
                     console.warn('Excel 시리얼 날짜 변환 실패:', e);
@@ -2375,15 +2487,15 @@
                 const date = new Date(dateStr);
                 if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2100) {
                     const result = date.toISOString().split('T')[0];
-                    console.log('패턴 7 매칭 (일반 Date):', result);
+                    console.log('카카오뱅크 패턴 7 매칭 (일반 Date):', result);
                     return result;
                 }
             } catch (e) {
                 console.warn('일반 날짜 파싱 실패:', e);
             }
             
-            console.warn('날짜 포맷팅 실패, 원본 반환:', dateStr);
-            return dateStr;
+            console.warn('카카오뱅크 날짜 포맷팅 실패, 빈 문자열 반환:', dateStr);
+            return '';
         }
         
         // 거래 고유 키 생성 (중복 방지용)
@@ -2392,7 +2504,7 @@
             return `${date}_${amount}_${cleanDesc}`;
         }
         
-        // 행에서 거래 정보 추출 (강화된 버전)
+        // 행에서 거래 정보 추출 (카카오뱅크 지원 강화)
         function extractTransactionFromRow(row, columnMap, rowNum) {
             try {
                 console.log(`행 ${rowNum} 파싱 시작 (매핑: ${JSON.stringify(columnMap)}):`, row);
@@ -2400,7 +2512,7 @@
                 const date = formatDate(row[columnMap.date]);
                 const description = String(row[columnMap.description] || '').trim();
                 
-                // 금액 결정 (우선순위: 입금 컬럼 > 일반 금액 컬럼)
+                // 금액 결정 (우선순위: 입금 컬럼 > 구분 컬럼 확인 > 일반 금액 컬럼)
                 let amount = 0;
                 let isDeposit = false;
                 
@@ -2410,11 +2522,17 @@
                     isDeposit = amount > 0;
                     console.log(`행 ${rowNum}: 입금 컬럼 사용 (${amount})`);
                 } else if (columnMap.type >= 0 && row[columnMap.type]) {
-                    // 입출금 구분 컬럼이 있는 경우
+                    // 입출금 구분 컬럼이 있는 경우 (카카오뱅크)
                     const typeStr = String(row[columnMap.type]).toLowerCase().trim();
                     isDeposit = typeStr.includes('입금') || typeStr.includes('+') || typeStr === '입';
                     amount = parseAmount(row[columnMap.amount]);
-                    console.log(`행 ${rowNum}: 구분 컬럼 사용 (${typeStr}, ${amount})`);
+                    
+                    // 카카오뱅크는 음수 표시를 사용하지 않고 '입금'/'출금' 구분 사용
+                    if (isDeposit) {
+                        amount = Math.abs(amount); // 입금은 항상 양수
+                    }
+                    
+                    console.log(`행 ${rowNum}: 구분 컬럼 사용 (${typeStr} → 입금여부: ${isDeposit}, 금액: ${amount})`);
                 } else {
                     // 일반 금액 컬럼만 있는 경우 (양수면 입금으로 가정)
                     amount = parseAmount(row[columnMap.amount]);
@@ -2427,6 +2545,9 @@
                 // 유효성 검사
                 if (!date || !description || amount <= 0) {
                     console.log(`행 ${rowNum} 스킵: 필수 값 누락 또는 금액 0 이하`);
+                    console.log(`- 날짜: "${date}" (길이: ${date.length})`);
+                    console.log(`- 설명: "${description}" (길이: ${description.length})`);
+                    console.log(`- 금액: ${amount}`);
                     return null;
                 }
                 
@@ -2459,35 +2580,53 @@
             }
         }
         
-        // 금액 파싱 (강화된 버전)
+        // 금액 파싱 (텍스트 값 처리 강화)
         function parseAmount(amountStr) {
-            if (!amountStr) return 0;
+            if (!amountStr || amountStr === '' || amountStr === null || amountStr === undefined) {
+                console.log('금액 값이 비어있음:', amountStr);
+                return 0;
+            }
             
-            console.log('금액 파싱 시작:', amountStr);
+            console.log('금액 파싱 시작:', amountStr, typeof amountStr);
             
             let cleanAmount = String(amountStr);
             
             // 1. 공백 제거
             cleanAmount = cleanAmount.trim();
             
-            // 2. 빈 값 체크
-            if (cleanAmount === '' || cleanAmount === '-') return 0;
+            // 2. 빈 값이나 텍스트만 있는 경우 체크
+            if (cleanAmount === '' || cleanAmount === '-') {
+                console.log('금액이 빈 값이거나 하이픈:', cleanAmount);
+                return 0;
+            }
             
-            // 3. 쉼표 제거
+            // 3. 순수 텍스트인 경우 (숫자가 전혀 없는 경우)
+            if (!/\d/.test(cleanAmount)) {
+                console.log('숫자가 포함되지 않은 텍스트:', cleanAmount);
+                return 0;
+            }
+            
+            // 4. 쉼표 제거
             cleanAmount = cleanAmount.replace(/,/g, '');
             
-            // 4. 원화 표시 제거
+            // 5. 원화 표시 제거
             cleanAmount = cleanAmount.replace(/원$/g, '');
             
-            // 5. 괄호로 둘러싸인 음수 처리 (123) → -123
+            // 6. 괄호로 둘러싸인 음수 처리 (123) → -123
             if (cleanAmount.startsWith('(') && cleanAmount.endsWith(')')) {
                 cleanAmount = '-' + cleanAmount.slice(1, -1);
             }
             
-            // 6. 숫자와 소수점, 마이너스만 남기기
+            // 7. 숫자와 소수점, 마이너스만 남기기
             cleanAmount = cleanAmount.replace(/[^0-9.-]/g, '');
             
-            // 7. 여러 개의 마이너스나 소수점 처리
+            // 8. 빈 문자열이 된 경우
+            if (cleanAmount === '' || cleanAmount === '-' || cleanAmount === '.') {
+                console.log('정리 후 빈 값:', cleanAmount);
+                return 0;
+            }
+            
+            // 9. 여러 개의 마이너스나 소수점 처리
             const parts = cleanAmount.split('.');
             if (parts.length > 2) {
                 cleanAmount = parts[0] + '.' + parts.slice(1).join('');
@@ -2501,40 +2640,62 @@
             return Math.abs(parsed);
         }
         
-        // 날짜 포맷팅
+        // 날짜 포맷팅 (빈 값 처리 강화)
         function formatDate(dateValue) {
-            if (!dateValue) return '';
+            if (!dateValue || dateValue === '' || dateValue === null || dateValue === undefined) {
+                console.log('날짜 값이 비어있음:', dateValue);
+                return '';
+            }
+            
+            console.log('날짜 포맷팅 시작:', dateValue, typeof dateValue);
             
             if (typeof dateValue === 'number') {
                 const date = new Date((dateValue - 25569) * 86400 * 1000);
-                return date.toISOString().split('T')[0];
+                const result = date.toISOString().split('T')[0];
+                console.log('Excel 시리얼 날짜 변환:', dateValue, '→', result);
+                return result;
             }
             
             const dateStr = String(dateValue).trim();
             
+            // 빈 문자열이나 의미없는 값 체크
+            if (!dateStr || dateStr === '' || dateStr === '-' || dateStr === 'null') {
+                console.log('유효하지 않은 날짜 문자열:', dateStr);
+                return '';
+            }
+            
+            // 패턴별 날짜 파싱
             if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                console.log('이미 표준 형식:', dateStr);
                 return dateStr;
             }
             
-            if (/^\d{4}\.\d{2}\.\d{2}$/.test(dateStr)) {
-                return dateStr.replace(/\./g, '-');
+            if (/^\d{4}\.\d{2}\.\d{2}/.test(dateStr)) {
+                const result = dateStr.replace(/\./g, '-').substring(0, 10);
+                console.log('점 구분자 형식 변환:', dateStr, '→', result);
+                return result;
             }
             
             if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
                 const parts = dateStr.split('/');
-                return `${parts[2]}-${parts[0]}-${parts[1]}`;
+                const result = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+                console.log('슬래시 구분자 형식 변환:', dateStr, '→', result);
+                return result;
             }
             
             try {
                 const date = new Date(dateStr);
-                if (!isNaN(date.getTime())) {
-                    return date.toISOString().split('T')[0];
+                if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
+                    const result = date.toISOString().split('T')[0];
+                    console.log('일반 Date 파싱 성공:', dateStr, '→', result);
+                    return result;
                 }
             } catch (error) {
-                console.warn('날짜 파싱 실패:', dateStr);
+                console.warn('날짜 파싱 실패:', dateStr, error);
             }
             
-            return dateStr;
+            console.warn('날짜 포맷팅 실패, 빈 문자열 반환:', dateStr);
+            return '';
         }
         
         // 거래내역과 고객 매칭

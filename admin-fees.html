@@ -1897,11 +1897,93 @@
             return results;
         }
         
-        // 잠재적 매칭 찾기
+        // 거래 설명에서 정보 추출
+        function extractInfoFromDescription(description) {
+            const info = {
+                names: [],
+                roomNumbers: [],
+                phoneNumbers: [],
+                originalText: description
+            };
+            
+            // 1. 별표로 둘러싸인 이름 추출 (***김철수***, **홍길동**)
+            const starPatterns = [
+                /\*{2,}([가-힣]{2,4})\*{2,}/g,
+                /\*([가-힣]{2,4})\*/g
+            ];
+            
+            starPatterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(description)) !== null) {
+                    info.names.push(match[1]);
+                }
+            });
+            
+            // 2. 괄호 안의 이름 추출 (302호(전신금), (김철수))
+            const bracketPattern = /\(([가-힣]{2,4})\)/g;
+            let match;
+            while ((match = bracketPattern.exec(description)) !== null) {
+                info.names.push(match[1]);
+            }
+            
+            // 3. 호수 정보 추출 (302호, 101동, A동 203호)
+            const roomPatterns = [
+                /(\d{1,4})호/g,
+                /([A-Z가-힣]\d*)동/g,
+                /(\d{1,4})-(\d{1,4})/g,  // 101-203 형태
+                /([A-Z가-힣])동\s*(\d{1,4})호/g  // A동 203호
+            ];
+            
+            roomPatterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(description)) !== null) {
+                    if (pattern.source.includes('동.*호')) {
+                        // A동 203호 형태
+                        info.roomNumbers.push(`${match[1]}동${match[2]}호`);
+                        info.roomNumbers.push(match[2]); // 호수만도 추가
+                    } else {
+                        info.roomNumbers.push(match[1]);
+                        if (match[2]) info.roomNumbers.push(match[2]); // 101-203 형태의 두 번째 숫자
+                    }
+                }
+            });
+            
+            // 4. 전화번호 뒷자리 추출 (1234, #1234)
+            const phonePattern = /#?(\d{4})/g;
+            while ((match = phonePattern.exec(description)) !== null) {
+                info.phoneNumbers.push(match[1]);
+            }
+            
+            // 5. 단순 한글 이름 추출 (공백으로 분리된 경우)
+            const words = description.split(/[\s,()[\]{}]+/);
+            words.forEach(word => {
+                const cleanWord = word.replace(/[^\w가-힣]/g, '');
+                if (/^[가-힣]{2,4}$/.test(cleanWord)) {
+                    info.names.push(cleanWord);
+                }
+            });
+            
+            // 중복 제거
+            info.names = [...new Set(info.names)];
+            info.roomNumbers = [...new Set(info.roomNumbers)];
+            info.phoneNumbers = [...new Set(info.phoneNumbers)];
+            
+            debugLog('거래 설명 파싱 결과', {
+                original: description,
+                extracted: info
+            });
+            
+            return info;
+        }
+        
+        // 잠재적 매칭 찾기 (강화됨)
         async function findPotentialMatches(transaction) {
             const matches = [];
             const description = transaction.description.toLowerCase();
             const amount = transaction.amount;
+            
+            // 거래 설명에서 정보 추출
+            const extractedInfo = extractInfoFromDescription(transaction.description);
             
             const unpaidFees = allFees.filter(fee => fee.payment_status === '미납');
             
@@ -1923,28 +2005,105 @@
                 } else if (amountDiff <= 1000) {
                     matchScore += 20;
                     scoreDetails.nearAmount = 20;
+                } else if (amountDiff <= 5000) {
+                    matchScore += 10;
+                    scoreDetails.roughAmount = 10;
                 }
                 
-                // 고객명 매칭 (35점)
+                // 고객명 매칭 (강화됨) - 35점
                 const customerName = customer.name.toLowerCase();
+                let nameMatchFound = false;
+                
+                // 1. 전체 설명에서 이름 찾기
                 if (description.includes(customerName)) {
                     matchScore += 35;
-                    scoreDetails.fullName = 35;
+                    scoreDetails.fullNameInDescription = 35;
+                    nameMatchFound = true;
                 }
                 
-                // 전화번호 뒷자리 매칭 (20점)
-                if (customer.phone_last4 && description.includes(customer.phone_last4)) {
-                    matchScore += 20;
-                    scoreDetails.phoneLastFour = 20;
+                // 2. 추출된 이름들과 매칭
+                if (!nameMatchFound) {
+                    for (const extractedName of extractedInfo.names) {
+                        if (extractedName.toLowerCase() === customerName) {
+                            matchScore += 35;
+                            scoreDetails.extractedNameMatch = 35;
+                            nameMatchFound = true;
+                            break;
+                        }
+                        // 부분 매칭 (이름이 포함되어 있는 경우)
+                        if (extractedName.toLowerCase().includes(customerName) || 
+                            customerName.includes(extractedName.toLowerCase())) {
+                            matchScore += 25;
+                            scoreDetails.partialNameMatch = 25;
+                            nameMatchFound = true;
+                            break;
+                        }
+                    }
                 }
                 
-                // 건물명 매칭 (10점)
-                if (customer.building_name && description.toLowerCase().includes(customer.building_name.toLowerCase())) {
-                    matchScore += 10;
-                    scoreDetails.buildingName = 10;
+                // 호수 매칭 (강화됨) - 15점
+                const customerRoom = customer.room_number;
+                if (customerRoom) {
+                    const roomStr = customerRoom.toLowerCase();
+                    
+                    // 1. 전체 설명에서 호수 찾기
+                    if (description.includes(roomStr)) {
+                        matchScore += 15;
+                        scoreDetails.roomInDescription = 15;
+                    } else {
+                        // 2. 추출된 호수들과 매칭
+                        for (const extractedRoom of extractedInfo.roomNumbers) {
+                            if (extractedRoom === customerRoom || 
+                                extractedRoom === customerRoom.replace(/[^\d]/g, '') ||
+                                roomStr.includes(extractedRoom)) {
+                                matchScore += 15;
+                                scoreDetails.extractedRoomMatch = 15;
+                                break;
+                            }
+                        }
+                    }
                 }
                 
-                if (matchScore >= 25) {
+                // 전화번호 뒷자리 매칭 (강화됨) - 20점
+                if (customer.phone_last4) {
+                    const last4 = customer.phone_last4;
+                    
+                    // 1. 전체 설명에서 찾기
+                    if (description.includes(last4)) {
+                        matchScore += 20;
+                        scoreDetails.phoneLastFour = 20;
+                    } else {
+                        // 2. 추출된 전화번호들과 매칭
+                        for (const extractedPhone of extractedInfo.phoneNumbers) {
+                            if (extractedPhone === last4 || 
+                                extractedPhone.endsWith(last4) ||
+                                last4.endsWith(extractedPhone)) {
+                                matchScore += 20;
+                                scoreDetails.extractedPhoneMatch = 20;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                // 건물명 매칭 - 10점
+                if (customer.building_name) {
+                    const buildingName = customer.building_name.toLowerCase();
+                    if (description.includes(buildingName)) {
+                        matchScore += 10;
+                        scoreDetails.buildingName = 10;
+                    }
+                }
+                
+                // 년월 매칭 - 5점
+                const transactionMonth = transaction.date.substring(0, 7);
+                if (fee.year_month === transactionMonth) {
+                    matchScore += 5;
+                    scoreDetails.sameMonth = 5;
+                }
+                
+                // 매칭 임계값을 낮춤 (더 많은 후보 제시)
+                if (matchScore >= 20) {
                     const confidence = getConfidenceLevel(matchScore);
                     
                     matches.push({
@@ -1953,7 +2112,8 @@
                         score: matchScore,
                         confidence,
                         scoreDetails,
-                        amountDiff
+                        amountDiff,
+                        extractedInfo: extractedInfo  // 디버깅용
                     });
                 }
             }
@@ -1973,7 +2133,7 @@
             return 'very-low';
         }
         
-        // 매칭 결과 표시
+        // 매칭 결과 표시 (강화됨)
         function displayMatchingResults() {
             const matchingResultsContainer = document.getElementById('matchingResults');
             const matchingContent = document.getElementById('matchingContent');
@@ -1993,8 +2153,24 @@
             matchingResults.forEach((result, index) => {
                 const { transaction, matches, status, selectedMatch, processed } = result;
                 
+                // 거래 설명에서 추출된 정보
+                const extractedInfo = extractInfoFromDescription(transaction.description);
+                
                 const confidenceEmoji = getConfidenceEmoji(selectedMatch?.confidence);
                 const statusClass = processed ? 'confirmed' : status;
+                
+                // 추출된 정보 표시
+                let extractedInfoHtml = '';
+                if (extractedInfo.names.length > 0 || extractedInfo.roomNumbers.length > 0 || extractedInfo.phoneNumbers.length > 0) {
+                    extractedInfoHtml = `
+                        <div style="font-size: 12px; color: #666; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 5px;">
+                            🔍 추출된 정보: 
+                            ${extractedInfo.names.length > 0 ? `👤이름: ${extractedInfo.names.join(', ')} ` : ''}
+                            ${extractedInfo.roomNumbers.length > 0 ? `🏠호수: ${extractedInfo.roomNumbers.join(', ')} ` : ''}
+                            ${extractedInfo.phoneNumbers.length > 0 ? `📞번호: ${extractedInfo.phoneNumbers.join(', ')}` : ''}
+                        </div>
+                    `;
+                }
                 
                 html += `
                     <div class="match-item ${statusClass}" id="match-item-${index}">
@@ -2002,6 +2178,7 @@
                             <div class="bank-data">
                                 💰 ${formatCurrency(transaction.amount)} | 📅 ${transaction.date} | 📝 ${transaction.description}
                             </div>
+                            ${extractedInfoHtml}
                             ${status === 'matched' && selectedMatch ? `
                                 <div class="customer-data">
                                     ${processed ? '✨ 처리완료:' : '✅ 매칭:'} 
@@ -2010,9 +2187,15 @@
                                     - 청구액: ${formatCurrency(selectedMatch.fee.total_fee)}
                                     ${confidenceEmoji} ${getConfidenceText(selectedMatch.confidence)} 
                                     (점수: ${selectedMatch.score}점)
+                                    ${getMatchingReasons(selectedMatch.scoreDetails)}
                                 </div>
                             ` : `
                                 <div class="no-match">❌ 매칭되는 고객을 찾을 수 없습니다</div>
+                                ${matches.length > 0 ? `
+                                    <div style="font-size: 12px; color: #f39c12; margin-top: 5px;">
+                                        💡 ${matches.length}개의 낮은 점수 후보가 있습니다. 수동 선택을 시도해보세요.
+                                    </div>
+                                ` : ''}
                             `}
                         </div>
                         <div class="match-actions">
@@ -2022,9 +2205,9 @@
                                         ✅ 납부처리
                                     </button>
                                 ` : ''}
-                                ${matches.length > 1 ? `
+                                ${matches.length > 0 ? `
                                     <button class="match-btn manual-btn" onclick="openManualMatch(${index})">
-                                        🔧 수동선택
+                                        🔧 수동선택 (${matches.length}개 후보)
                                     </button>
                                 ` : ''}
                                 <button class="match-btn skip-btn" onclick="skipMatch(${index})">
@@ -2042,172 +2225,56 @@
             matchingResultsContainer.style.display = 'block';
         }
         
-        // 신뢰도 이모지 및 텍스트
-        function getConfidenceEmoji(confidence) {
-            switch (confidence) {
-                case 'very-high': return '🟢';
-                case 'high': return '🟡';
-                case 'medium': return '🟠';
-                case 'low': return '🔴';
-                default: return '⚪';
-            }
+        // 매칭 이유 표시
+        function getMatchingReasons(scoreDetails) {
+            const reasons = [];
+            
+            if (scoreDetails.exactAmount) reasons.push('💯정확한 금액');
+            else if (scoreDetails.closeAmount) reasons.push('💰유사한 금액');
+            else if (scoreDetails.nearAmount) reasons.push('💰근접한 금액');
+            
+            if (scoreDetails.fullNameInDescription) reasons.push('👤이름 정확 매칭');
+            else if (scoreDetails.extractedNameMatch) reasons.push('👤추출된 이름 매칭');
+            else if (scoreDetails.partialNameMatch) reasons.push('👤부분 이름 매칭');
+            
+            if (scoreDetails.roomInDescription) reasons.push('🏠호수 매칭');
+            else if (scoreDetails.extractedRoomMatch) reasons.push('🏠추출된 호수 매칭');
+            
+            if (scoreDetails.phoneLastFour) reasons.push('📞전화번호 매칭');
+            else if (scoreDetails.extractedPhoneMatch) reasons.push('📞추출된 번호 매칭');
+            
+            if (scoreDetails.buildingName) reasons.push('🏢건물명 매칭');
+            if (scoreDetails.sameMonth) reasons.push('📅동일 월');
+            
+            return reasons.length > 0 ? `<br><small style="color: #27ae60;">${reasons.join(', ')}</small>` : '';
         }
         
-        function getConfidenceText(confidence) {
-            switch (confidence) {
-                case 'very-high': return '매우 높음';
-                case 'high': return '높음';
-                case 'medium': return '보통';
-                case 'low': return '낮음';
-                default: return '매우 낮음';
-            }
-        }
-        
-        // 개별 매칭 확정
-        async function confirmMatch(index) {
-            const result = matchingResults[index];
-            if (!result.selectedMatch || result.processed) return;
-            
-            try {
-                debugLog('납부 처리 시작', { index, customer: result.selectedMatch.customer.name });
-                
-                await updatePaymentStatus(result.selectedMatch.fee, result.transaction);
-                
-                result.processed = true;
-                
-                const matchItem = document.getElementById(`match-item-${index}`);
-                matchItem.className = 'match-item confirmed';
-                
-                const actions = matchItem.querySelector('.match-actions');
-                actions.innerHTML = '<span style="color: #9b59b6; font-weight: 600;">✨ 처리완료</span>';
-                
-                updateCounters();
-                showToast(`${result.selectedMatch.customer.name}님의 납부가 처리되었습니다.`);
-                
-                // 수동 관리 탭 데이터 새로고침
-                await loadFees();
-                
-            } catch (error) {
-                console.error('납부 처리 실패:', error);
-                showError('납부 처리 실패', error.message);
-            }
-        }
-        
-        // 실제 납부 업데이트 (수정됨)
-        async function updatePaymentStatus(fee, transaction) {
-            try {
-                debugLog('납부 상태 업데이트 시작', {
-                    fee_id: fee.fee_id,
-                    customer_id: fee.customer_id,
-                    amount: transaction.amount
-                });
-                
-                const result = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
-                    action: 'updatePayment',
-                    fee_id: fee.fee_id,
-                    customer_id: fee.customer_id,
-                    payment_amount: transaction.amount,
-                    payment_date: transaction.date,
-                    description: transaction.description
-                });
-                
-                if (!result.success) {
-                    throw new Error(result.error || '알 수 없는 오류');
-                }
-                
-                debugLog('납부 상태 업데이트 성공', result);
-                return result;
-                
-            } catch (error) {
-                debugLog('납부 상태 업데이트 실패', error);
-                throw error;
-            }
-        }
-        
-        // 일괄 처리
-        async function processAllMatches() {
-            const pendingMatches = matchingResults.filter(r => 
-                r.status === 'matched' && r.selectedMatch && !r.processed
-            );
-            
-            if (pendingMatches.length === 0) {
-                alert('처리할 매칭된 항목이 없습니다.');
-                return;
-            }
-            
-            if (!confirm(`${pendingMatches.length}건의 납부를 일괄 처리하시겠습니까?`)) {
-                return;
-            }
-            
-            showProgress(0, '일괄 처리 시작...');
-            
-            let processed = 0;
-            let failed = 0;
-            
-            for (let i = 0; i < pendingMatches.length; i++) {
-                const matchResult = pendingMatches[i];
-                const index = matchingResults.indexOf(matchResult);
-                
-                try {
-                    await updatePaymentStatus(matchResult.selectedMatch.fee, matchResult.transaction);
-                    
-                    matchResult.processed = true;
-                    processed++;
-                    
-                    const matchItem = document.getElementById(`match-item-${index}`);
-                    if (matchItem) {
-                        matchItem.className = 'match-item confirmed';
-                        const actions = matchItem.querySelector('.match-actions');
-                        actions.innerHTML = '<span style="color: #9b59b6; font-weight: 600;">✨ 처리완료</span>';
-                    }
-                    
-                    await sleep(200); // API 제한 방지
-                    
-                } catch (error) {
-                    failed++;
-                    console.error('개별 처리 실패:', error);
-                }
-                
-                const progress = Math.round(((i + 1) / pendingMatches.length) * 100);
-                showProgress(progress, `${processed}/${pendingMatches.length}건 처리 완료...`);
-            }
-            
-            hideProgress();
-            updateCounters();
-            
-            showToast(`일괄 처리 완료! 성공: ${processed}건, 실패: ${failed}건`);
-            
-            // 수동 관리 탭 데이터 새로고침
-            await loadFees();
-        }
-        
-        // 카운터 업데이트
-        function updateCounters() {
-            const matched = matchingResults.filter(r => r.status === 'matched').length;
-            const unmatched = matchingResults.filter(r => r.status === 'unmatched').length;
-            const confirmed = matchingResults.filter(r => r.processed).length;
-            const pending = matchingResults.filter(r => r.status === 'matched' && !r.processed).length;
-            
-            document.getElementById('matchedCount').textContent = matched;
-            document.getElementById('unmatchedCount').textContent = unmatched;
-            document.getElementById('confirmedCount').textContent = confirmed;
-            document.getElementById('pendingCount').textContent = pending;
-        }
-        
-        // 수동 매칭 모달
+        // 수동 매칭 모달 (강화됨)
         function openManualMatch(index) {
             const result = matchingResults[index];
             currentManualMatch = { index, result };
+            
+            // 거래 설명에서 추출된 정보
+            const extractedInfo = extractInfoFromDescription(result.transaction.description);
             
             let html = `
                 <div style="margin-bottom: 25px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
                     <h4 style="margin-bottom: 15px; color: #2c3e50;">💳 거래내역</h4>
                     <div style="font-size: 16px; font-weight: 600;">💰 ${formatCurrency(result.transaction.amount)}</div>
                     <div style="margin: 5px 0;">📅 ${result.transaction.date}</div>
-                    <div style="color: #666;">📝 ${result.transaction.description}</div>
+                    <div style="color: #666; margin: 5px 0;">📝 ${result.transaction.description}</div>
+                    
+                    ${extractedInfo.names.length > 0 || extractedInfo.roomNumbers.length > 0 || extractedInfo.phoneNumbers.length > 0 ? `
+                        <div style="margin-top: 15px; padding: 10px; background: #fff; border-radius: 5px; border-left: 4px solid #667eea;">
+                            <div style="font-weight: 600; color: #667eea; margin-bottom: 5px;">🔍 추출된 정보:</div>
+                            ${extractedInfo.names.length > 0 ? `<div>👤 이름: <strong>${extractedInfo.names.join(', ')}</strong></div>` : ''}
+                            ${extractedInfo.roomNumbers.length > 0 ? `<div>🏠 호수: <strong>${extractedInfo.roomNumbers.join(', ')}</strong></div>` : ''}
+                            ${extractedInfo.phoneNumbers.length > 0 ? `<div>📞 전화번호: <strong>${extractedInfo.phoneNumbers.join(', ')}</strong></div>` : ''}
+                        </div>
+                    ` : ''}
                 </div>
                 
-                <h4 style="margin-bottom: 20px; color: #2c3e50;">👥 매칭 후보 선택</h4>
+                <h4 style="margin-bottom: 20px; color: #2c3e50;">👥 매칭 후보 선택 (${result.matches.length}개)</h4>
             `;
             
             if (result.matches.length === 0) {
@@ -2215,9 +2282,10 @@
             } else {
                 result.matches.forEach((match, i) => {
                     const confidenceEmoji = getConfidenceEmoji(match.confidence);
+                    const matchReasons = getMatchingReasons(match.scoreDetails);
                     
                     html += `
-                        <div style="margin-bottom: 15px; padding: 20px; border: 2px solid ${i === 0 ? '#667eea' : '#e1e8ed'}; border-radius: 10px;">
+                        <div style="margin-bottom: 15px; padding: 20px; border: 2px solid ${i === 0 ? '#667eea' : '#e1e8ed'}; border-radius: 10px; transition: all 0.3s ease;">
                             <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 15px;">
                                 <input type="radio" name="manualMatch" value="${i}" ${i === 0 ? 'checked' : ''} 
                                        style="margin-top: 5px;">
@@ -2226,15 +2294,20 @@
                                         ${match.customer.name} (${match.customer.building_name} ${match.customer.room_number})
                                     </div>
                                     <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
-                                        📞 ${match.customer.phone} | 💰 청구액: ${formatCurrency(match.fee.total_fee)}
+                                        📞 ${match.customer.phone} 
+                                        ${match.customer.phone_last4 ? `(뒷자리: ${match.customer.phone_last4})` : ''}
+                                        | 💰 청구액: ${formatCurrency(match.fee.total_fee)}
                                     </div>
-                                    <div style="display: flex; align-items: center; gap: 15px;">
+                                    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
                                         <span style="color: #27ae60; font-weight: 600;">
                                             ${confidenceEmoji} ${getConfidenceText(match.confidence)} (${match.score}점)
                                         </span>
                                         <span style="color: #f39c12; font-size: 13px;">
                                             금액차이: ${formatCurrency(match.amountDiff)}
                                         </span>
+                                    </div>
+                                    <div style="margin-top: 8px; font-size: 12px; color: #27ae60;">
+                                        ${matchReasons}
                                     </div>
                                 </div>
                             </label>

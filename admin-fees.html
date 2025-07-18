@@ -631,6 +631,19 @@
             color: #666;
             font-size: 16px;
         }
+
+        /* 디버그 정보 스타일 */
+        .debug-info {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
         
         @media (max-width: 768px) {
             .container {
@@ -909,10 +922,10 @@
         let currentManualMatch = null;
         let processingStartTime = null;
         let isConnected = false;
+        let debugMode = true; // 디버깅 모드
         
         // 페이지 로드 시 실행
         document.addEventListener('DOMContentLoaded', async function() {
-            // Apps Script URL 표시
             document.getElementById('appsScriptUrl').textContent = SHEET_CONFIG.APPS_SCRIPT_URL;
             
             await checkConnection();
@@ -924,45 +937,65 @@
             setupEventListeners();
         });
         
+        // 디버그 로그 함수
+        function debugLog(message, data = null) {
+            if (debugMode) {
+                console.log(`[DEBUG] ${message}`, data || '');
+            }
+        }
+        
+        // 오류 표시 함수
+        function showError(title, message, details = null) {
+            console.error(`[ERROR] ${title}:`, message, details || '');
+            
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'debug-info';
+            errorDiv.innerHTML = `
+                <strong>🚨 ${title}</strong><br>
+                ${message}<br>
+                ${details ? `<pre>${JSON.stringify(details, null, 2)}</pre>` : ''}
+            `;
+            
+            const container = document.querySelector('.bank-upload-section');
+            container.appendChild(errorDiv);
+            
+            setTimeout(() => {
+                if (errorDiv.parentNode) {
+                    errorDiv.parentNode.removeChild(errorDiv);
+                }
+            }, 10000);
+        }
+        
         // 탭 전환
         function switchTab(tabName) {
-            // 모든 탭 버튼과 컨텐츠 비활성화
             document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             
-            // 선택된 탭 활성화
             event.target.classList.add('active');
             document.getElementById(tabName).classList.add('active');
             
-            // 수동 관리 탭으로 전환 시 데이터 새로고침
             if (tabName === 'manual-management') {
                 refreshData();
             }
         }
         
-        // JSONP 요청 함수 (CORS 문제 완전 해결)
+        // JSONP 요청 함수
         function makeJSONPRequest(url, params = {}) {
             return new Promise((resolve, reject) => {
-                // 콜백 함수명 생성
                 const callbackName = 'jsonp_callback_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
                 
-                // 글로벌 콜백 함수 생성
                 window[callbackName] = function(data) {
-                    // 정리
                     document.head.removeChild(script);
                     delete window[callbackName];
                     resolve(data);
                 };
                 
-                // 파라미터에 콜백 추가
                 params.callback = callbackName;
                 
-                // URL 파라미터 생성
                 const queryString = Object.keys(params)
                     .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
                     .join('&');
                 
-                // script 태그 생성
                 const script = document.createElement('script');
                 script.src = url + '?' + queryString;
                 script.onerror = function() {
@@ -971,24 +1004,23 @@
                     reject(new Error('JSONP 요청 실패'));
                 };
                 
-                // script 태그 추가 (요청 시작)
                 document.head.appendChild(script);
                 
-                // 타임아웃 설정
                 setTimeout(() => {
                     if (window[callbackName]) {
                         document.head.removeChild(script);
                         delete window[callbackName];
                         reject(new Error('JSONP 요청 타임아웃'));
                     }
-                }, 10000); // 10초 타임아웃
+                }, 15000);
             });
         }
         
-        // 연결 확인 함수 (수정됨)
+        // 연결 확인 함수
         async function checkConnection() {
             try {
-                // 1. 읽기 API 테스트
+                debugLog('연결 확인 시작');
+                
                 const readResponse = await fetch(
                     `${SHEET_CONFIG.BASE_URL}/${SHEET_CONFIG.SHEET_ID}?key=${SHEET_CONFIG.API_KEY}`
                 );
@@ -997,13 +1029,11 @@
                     throw new Error('읽기 API 응답 오류');
                 }
                 
-                // 2. Apps Script 쓰기 API 테스트 (GET 요청으로 변경)
+                debugLog('읽기 API 성공');
+                
                 const writeResponse = await fetch(
                     `${SHEET_CONFIG.APPS_SCRIPT_URL}?action=testConnection&timestamp=${Date.now()}`,
-                    {
-                        method: 'GET',
-                        mode: 'cors'
-                    }
+                    { method: 'GET', mode: 'cors' }
                 );
                 
                 if (writeResponse.ok) {
@@ -1011,13 +1041,14 @@
                     if (result.success) {
                         isConnected = true;
                         updateConnectionStatus(true, '읽기/쓰기 모두 연결됨');
+                        debugLog('Apps Script 연결 성공', result);
                     } else {
                         isConnected = false;
                         updateConnectionStatus(false, '쓰기 권한 문제: ' + result.error);
                     }
                 } else {
                     isConnected = false;
-                    updateConnectionStatus(false, '쓰기 권한 없음 - Apps Script 배포 확인 필요');
+                    updateConnectionStatus(false, '쓰기 권한 없음');
                 }
                 
             } catch (error) {
@@ -1027,87 +1058,23 @@
             }
         }
         
-        // 연결 진단 함수 (JSONP 방식)
+        // 연결 진단 함수
         async function debugConnection() {
             console.log('=== 연결 진단 시작 ===');
             
-            const results = [];
-            
             try {
-                // 1. 기본 설정 확인
-                results.push('📋 기본 설정:');
-                results.push(`- API Key: ${SHEET_CONFIG.API_KEY.substring(0, 20)}...`);
-                results.push(`- Sheet ID: ${SHEET_CONFIG.SHEET_ID}`);
-                results.push(`- Apps Script URL: ${SHEET_CONFIG.APPS_SCRIPT_URL}`);
-                results.push('');
+                const result = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
+                    action: 'testConnection',
+                    timestamp: Date.now()
+                });
                 
-                // 2. 읽기 API 테스트
-                results.push('📖 읽기 API 테스트:');
-                try {
-                    const readResponse = await fetch(
-                        `${SHEET_CONFIG.BASE_URL}/${SHEET_CONFIG.SHEET_ID}?key=${SHEET_CONFIG.API_KEY}`
-                    );
-                    
-                    if (readResponse.ok) {
-                        results.push('✅ 읽기 API 연결 성공');
-                        const data = await readResponse.json();
-                        results.push(`- 시트 제목: ${data.properties?.title || '확인불가'}`);
-                    } else {
-                        results.push(`❌ 읽기 API 실패: ${readResponse.status} ${readResponse.statusText}`);
-                    }
-                } catch (error) {
-                    results.push(`❌ 읽기 API 오류: ${error.message}`);
-                }
-                results.push('');
-                
-                // 3. Apps Script JSONP 테스트
-                results.push('🔧 Apps Script JSONP 테스트:');
-                try {
-                    results.push('- JSONP 요청 시작...');
-                    
-                    const appsResult = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
-                        action: 'testConnection',
-                        timestamp: Date.now()
-                    });
-                    
-                    results.push('✅ Apps Script JSONP 연결 성공');
-                    results.push(`- 메시지: ${appsResult.message || '없음'}`);
-                    results.push(`- 시트명: ${appsResult.sheet_name || '없음'}`);
-                    results.push(`- 행 수: ${appsResult.rows || '없음'}`);
-                    results.push(`- 사용가능한 시트: ${appsResult.available_sheets?.join(', ') || '없음'}`);
-                    results.push(`- CORS 수정됨: ${appsResult.cors_fixed ? '✅' : '❌'}`);
-                    
-                } catch (error) {
-                    results.push(`❌ Apps Script JSONP 오류: ${error.message}`);
-                    results.push('- JSONP 방식 실패. Apps Script 재배포 필요');
-                }
-                results.push('');
-                
-                // 4. 브라우저 정보
-                results.push('🌐 브라우저 정보:');
-                results.push(`- User Agent: ${navigator.userAgent}`);
-                results.push(`- 현재 도메인: ${window.location.origin}`);
-                results.push('');
-                
-                // 5. 권장 해결책
-                results.push('🔧 권장 해결책:');
-                results.push('1. Google Apps Script에서 새 코드로 교체');
-                results.push('2. 새로 배포 (모든 사용자 권한)');
-                results.push('3. Apps Script에서 manualTest() 함수 실행해보기');
-                results.push('4. 시트 권한 확인 (편집 권한 필요)');
-                results.push('5. JSONP 방식으로 CORS 문제 완전 해결');
+                console.log('✅ 진단 성공:', result);
+                alert(`진단 완료!\n\n${JSON.stringify(result, null, 2)}`);
                 
             } catch (error) {
-                results.push(`❌ 진단 중 오류: ${error.message}`);
+                console.error('❌ 진단 실패:', error);
+                alert('진단 실패: ' + error.message);
             }
-            
-            // 결과 표시
-            const reportText = results.join('\n');
-            console.log(reportText);
-            
-            // 모달로 결과 표시
-            alert('연결 진단 완료!\n\n결과는 브라우저 콘솔(F12)에서 확인할 수 있습니다.\n\n' + 
-                  '주요 결과:\n' + results.slice(0, 10).join('\n'));
         }
         
         // 연결 상태 업데이트
@@ -1118,25 +1085,24 @@
                 statusElement.innerHTML = `🟢 ${message || '구글 시트 연결됨'}`;
             } else {
                 statusElement.className = 'status-indicator status-disconnected';
-                statusElement.innerHTML = `🔴 ${message || '연결 실패 - API 키 확인 필요'}`;
+                statusElement.innerHTML = `🔴 ${message || '연결 실패'}`;
             }
         }
         
-        // 쓰기 테스트 함수 (JSONP 방식)
+        // 쓰기 테스트 함수
         async function testPaymentUpdate() {
             if (!isConnected) {
                 alert('먼저 연결 테스트를 해주세요.');
                 return;
             }
             
-            if (!confirm('구글 시트 쓰기 기능을 테스트하시겠습니까?\n\n주의: 이 작업은 실제로 시트에 테스트 로그를 남깁니다.')) {
+            if (!confirm('구글 시트 쓰기 기능을 테스트하시겠습니까?')) {
                 return;
             }
             
             try {
                 showProgress(0, '쓰기 테스트 중...');
                 
-                // JSONP 요청
                 const result = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
                     action: 'logTest',
                     timestamp: new Date().toISOString(),
@@ -1150,7 +1116,7 @@
                     hideProgress();
                     
                     if (result.success) {
-                        showToast('🎉 쓰기 테스트 성공! 구글 시트 업데이트가 정상 작동합니다.');
+                        showToast('🎉 쓰기 테스트 성공!');
                         updateConnectionStatus(true, '읽기/쓰기 모두 정상 작동');
                     } else {
                         alert('쓰기 테스트 실패: ' + (result.error || '알 수 없는 오류'));
@@ -1162,7 +1128,6 @@
                 hideProgress();
                 console.error('쓰기 테스트 실패:', error);
                 alert('쓰기 테스트 중 오류가 발생했습니다: ' + error.message);
-                updateConnectionStatus(false, '쓰기 기능 오류');
             }
         }
         
@@ -1178,21 +1143,18 @@
             
             fileInput.addEventListener('change', handleFileSelect);
             
-            // 모달 닫기
             document.querySelectorAll('.close').forEach(closeBtn => {
                 closeBtn.onclick = function() {
                     this.closest('.modal').style.display = 'none';
                 };
             });
             
-            // 모달 외부 클릭 시 닫기
             window.onclick = function(event) {
                 if (event.target.classList.contains('modal')) {
                     event.target.style.display = 'none';
                 }
             };
             
-            // 필터 변경 시 자동 검색
             ['monthFilter', 'buildingFilter', 'statusFilter'].forEach(id => {
                 const element = document.getElementById(id);
                 if (element) {
@@ -1200,7 +1162,6 @@
                 }
             });
             
-            // 검색 입력 시 실시간 검색
             const searchInput = document.getElementById('searchInput');
             if (searchInput) {
                 searchInput.addEventListener('input', searchFees);
@@ -1261,6 +1222,7 @@
                     }
                     buildingSelect.value = currentValue;
                 }
+                debugLog('건물 목록 로드 완료');
             } catch (error) {
                 console.error('건물 목록 로드 오류:', error);
             }
@@ -1269,6 +1231,7 @@
         // 고객 데이터 로드
         async function loadCustomers() {
             try {
+                debugLog('고객 데이터 로드 시작');
                 const response = await fetch(
                     `${SHEET_CONFIG.BASE_URL}/${SHEET_CONFIG.SHEET_ID}/values/customers!A:K?key=${SHEET_CONFIG.API_KEY}`
                 );
@@ -1287,17 +1250,18 @@
                         room_number: row[5] || '',
                         status: row[8] || '거주중'
                     }));
-                    console.log(`고객 데이터 로드 완료: ${allCustomers.length}건`);
+                    debugLog(`고객 데이터 로드 완료: ${allCustomers.length}건`);
                 }
             } catch (error) {
                 console.error('고객 데이터 로드 오류:', error);
-                alert('고객 데이터를 불러오는데 실패했습니다.');
+                showError('고객 데이터 로드 실패', error.message);
             }
         }
         
         // 관리비 데이터 로드
         async function loadFees() {
             try {
+                debugLog('관리비 데이터 로드 시작');
                 const response = await fetch(
                     `${SHEET_CONFIG.BASE_URL}/${SHEET_CONFIG.SHEET_ID}/values/monthly_fees!A:L?key=${SHEET_CONFIG.API_KEY}`
                 );
@@ -1308,7 +1272,7 @@
                 
                 if (data.values && data.values.length > 1) {
                     allFees = data.values.slice(1).map((row, index) => ({
-                        rowIndex: index + 2, // 시트에서의 실제 행 번호 (헤더 제외)
+                        rowIndex: index + 2,
                         fee_id: row[0] || '',
                         customer_id: row[1] || '',
                         year_month: row[2] || '',
@@ -1326,7 +1290,7 @@
                     filteredFees = [...allFees];
                     displayFees();
                     updateSummary();
-                    console.log(`관리비 데이터 로드 완료: ${allFees.length}건`);
+                    debugLog(`관리비 데이터 로드 완료: ${allFees.length}건`);
                 } else {
                     displayNoData();
                 }
@@ -1354,64 +1318,14 @@
             }
         }
         
-        // 중복 확인 없이 파싱 (중복 여부 확인용) - 카카오뱅크 지원
-        async function parseBankDataWithoutDuplicateCheck(data, fileName) {
-            try {
-                const isKakaoBank = detectKakaoBank(data, fileName);
-                
-                if (isKakaoBank && Array.isArray(data)) {
-                    // 카카오뱅크는 강제로 특정 구조로 파싱
-                    const transactions = [];
-                    
-                    // 11행부터 시작 (헤더가 10행에 있다고 가정)
-                    for (let i = 11; i < data.length; i++) {
-                        const row = data[i];
-                        if (!row || !Array.isArray(row) || row.length < 4) continue;
-                        
-                        const dateCell = String(row[1] || '').trim();
-                        const typeCell = String(row[2] || '').trim();
-                        const amountCell = String(row[3] || '').trim();
-                        
-                        // 유효한 카카오뱅크 거래인지 확인
-                        if (dateCell.match(/\d{4}\.\d{2}\.\d{2}/) && 
-                            (typeCell === '입금' || typeCell === '출금') &&
-                            amountCell.match(/^-?[\d,]+$/)) {
-                            
-                            if (typeCell === '입금') {
-                                transactions.push({
-                                    date: dateCell.replace(/\./g, '-').substring(0, 10),
-                                    description: String(row[6] || row[5] || '일반입금').trim(),
-                                    amount: Math.abs(parseFloat(amountCell.replace(/,/g, '')) || 0),
-                                    type: '입금'
-                                });
-                            }
-                        }
-                    }
-                    
-                    console.log('중복 확인용 카카오뱅크 파싱:', transactions.length, '건');
-                    return transactions;
-                    
-                } else if (typeof data === 'string') {
-                    return parseCSVData(data);
-                } else if (Array.isArray(data)) {
-                    return parseExcelData(data);
-                }
-                
-                return [];
-            } catch (error) {
-                console.error('중복 확인용 파싱 오류:', error);
-                return [];
-            }
-        }
-        
-        // 파일 처리 메인 함수 (중복 방지 추가)
+        // 파일 처리 메인 함수 (강화된 오류 처리)
         async function processFile(file) {
             if (!file) return;
             
-            console.log('파일 처리 시작:', file.name, file.type, file.size);
+            debugLog('파일 처리 시작', { name: file.name, type: file.type, size: file.size });
             
             if (!isConnected) {
-                alert('구글 시트에 연결되지 않았습니다. 페이지를 새로고침하여 다시 시도해주세요.');
+                alert('구글 시트에 연결되지 않았습니다.');
                 return;
             }
             
@@ -1422,10 +1336,9 @@
             ];
             
             const fileExtension = file.name.split('.').pop().toLowerCase();
-            console.log('파일 확장자:', fileExtension);
             
             if (!allowedTypes.includes(file.type) && !['csv', 'xlsx', 'xls'].includes(fileExtension)) {
-                alert('지원하지 않는 파일 형식입니다. CSV 또는 Excel 파일(.xlsx, .xls)을 업로드해주세요.');
+                alert('지원하지 않는 파일 형식입니다. CSV 또는 Excel 파일을 업로드해주세요.');
                 return;
             }
             
@@ -1433,39 +1346,36 @@
             
             try {
                 showProgress(0, '파일을 읽는 중...');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
                 
                 const data = await readFile(file);
-                console.log('파일 읽기 완료, 데이터 타입:', typeof data);
+                debugLog('파일 읽기 완료', { dataType: typeof data, length: Array.isArray(data) ? data.length : data.length });
                 
                 showProgress(20, '거래내역을 분석하는 중...');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
                 
-                // 중복 방지 기능이 포함된 파싱
-                bankTransactions = await parseBankData(data, file.name);
-                console.log('파싱된 신규 거래내역:', bankTransactions.length, '건');
+                // 강화된 파싱
+                bankTransactions = await parseBankDataEnhanced(data, file.name);
+                debugLog('파싱 완료', { transactionCount: bankTransactions.length });
                 
                 if (bankTransactions.length === 0) {
                     hideProgress();
-                    
-                    // 중복만 있고 신규가 없는 경우와 파일 형식 오류를 구분
-                    const tempTransactions = await parseBankDataWithoutDuplicateCheck(data, file.name);
-                    
-                    if (tempTransactions.length > 0) {
-                        alert('🔄 모든 거래가 이미 처리되었습니다!\n\n업로드된 파일의 모든 거래내역이 이전에 이미 처리된 내역들입니다.\n중복 처리를 방지하기 위해 건너뛰었습니다.');
-                    } else {
-                        alert('📝 파일에서 유효한 거래내역을 찾을 수 없습니다.\n\n파일 형식을 확인해주세요:\n- 카카오뱅크: Excel 거래내역 다운로드\n- 기타 은행: CSV 형식 (날짜, 거래내용, 금액 컬럼 필요)\n- 입금 거래만 처리됩니다');
-                    }
+                    showError('파싱 실패', '파일에서 유효한 거래내역을 찾을 수 없습니다.', {
+                        fileName: file.name,
+                        fileType: file.type,
+                        fileSize: file.size
+                    });
                     return;
                 }
                 
-                showProgress(50, `${bankTransactions.length}건의 신규 입금 거래를 발견했습니다...`);
-                await new Promise(resolve => setTimeout(resolve, 500));
+                showProgress(50, `${bankTransactions.length}건의 입금 거래를 발견했습니다...`);
+                await sleep(500);
                 
                 showProgress(70, '고객 정보와 매칭하는 중...');
                 matchingResults = await matchTransactions(bankTransactions);
+                
                 showProgress(90, '매칭 결과를 준비하는 중...');
-                await new Promise(resolve => setTimeout(resolve, 500));
+                await sleep(500);
                 
                 showProgress(100, '매칭 완료!');
                 
@@ -1477,144 +1387,439 @@
             } catch (error) {
                 hideProgress();
                 console.error('파일 처리 오류:', error);
-                alert('파일 처리 중 오류가 발생했습니다.\n\n오류 내용: ' + error.message + '\n\n파일 형식을 확인하거나 다른 파일로 시도해주세요.');
+                showError('파일 처리 실패', error.message, {
+                    fileName: file.name,
+                    fileType: file.type,
+                    errorStack: error.stack
+                });
             }
         }
         
-        // CSV 헤더 분석 (한국 은행 형식 지원)
-        function analyzeCSVHeaders(headers) {
-            const map = { date: 0, description: 1, amount: 2, balance: 3 }; // 기본값
+        // 강화된 은행 데이터 파싱
+        async function parseBankDataEnhanced(data, fileName) {
+            debugLog('강화된 파싱 시작', { fileName, dataType: typeof data });
             
-            headers.forEach((header, index) => {
-                const h = header.toLowerCase().trim().replace(/"/g, '');
+            try {
+                let transactions = [];
                 
-                // 날짜 컬럼
-                if (h.includes('날짜') || h.includes('일자') || h.includes('date') || 
-                    h.includes('거래일') || h.includes('처리일')) {
-                    map.date = index;
+                // 1. 파일 형식 감지
+                const isKakaoBank = detectKakaoBank(data, fileName);
+                const isCSV = typeof data === 'string';
+                const isExcel = Array.isArray(data);
+                
+                debugLog('파일 형식 감지', { isKakaoBank, isCSV, isExcel });
+                
+                // 2. 형식별 파싱
+                if (isKakaoBank && isExcel) {
+                    transactions = parseKakaoBankEnhanced(data);
+                } else if (isCSV) {
+                    transactions = parseCSVEnhanced(data);
+                } else if (isExcel) {
+                    transactions = parseExcelEnhanced(data);
+                } else {
+                    throw new Error('지원하지 않는 파일 형식입니다.');
                 }
-                // 거래내용 컬럼  
-                else if (h.includes('내용') || h.includes('적요') || h.includes('description') || 
-                         h.includes('거래내용') || h.includes('상대방') || h.includes('입금자')) {
-                    map.description = index;
+                
+                // 3. 유효성 검사
+                const validTransactions = transactions.filter(t => 
+                    t && t.date && t.description && t.amount > 0
+                );
+                
+                debugLog('유효성 검사 완료', { 
+                    original: transactions.length, 
+                    valid: validTransactions.length 
+                });
+                
+                if (validTransactions.length === 0) {
+                    throw new Error('유효한 입금 거래를 찾을 수 없습니다.');
                 }
-                // 금액 컬럼
-                else if (h.includes('금액') || h.includes('amount') || h.includes('출금') || 
-                         h.includes('입금') || h.includes('거래금액')) {
-                    if (!map.amount || h.includes('입금')) map.amount = index;
-                }
-                // 잔액 컬럼
-                else if (h.includes('잔액') || h.includes('balance') || h.includes('잔고')) {
-                    map.balance = index;
-                }
-            });
-            
-            return map;
+                
+                return validTransactions;
+                
+            } catch (error) {
+                debugLog('파싱 오류', error);
+                throw error;
+            }
         }
         
-        // Excel 헤더 분석 (카카오뱅크 구조 지원)
-        function analyzeExcelHeaders(headers) {
-            const map = { 
-                date: 0, 
-                description: 1, 
-                amount: 2, 
-                balance: 3,
-                deposit: -1,   // 별도 입금 컬럼
-                withdraw: -1,  // 별도 출금 컬럼
-                type: -1       // 입출금 구분 컬럼
+        // 카카오뱅크 형식 감지 (개선됨)
+        function detectKakaoBank(data, fileName) {
+            if (fileName && fileName.toLowerCase().includes('카카오')) {
+                return true;
+            }
+            
+            if (Array.isArray(data)) {
+                // 처음 20행에서 카카오뱅크 관련 텍스트 찾기
+                for (let i = 0; i < Math.min(20, data.length); i++) {
+                    const row = data[i] || [];
+                    for (let j = 0; j < row.length; j++) {
+                        const cell = String(row[j] || '');
+                        if (cell.includes('카카오뱅크') || cell.includes('거래일시')) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            
+            return false;
+        }
+        
+        // 강화된 카카오뱅크 파싱
+        function parseKakaoBankEnhanced(data) {
+            debugLog('카카오뱅크 파싱 시작', { rows: data.length });
+            
+            const transactions = [];
+            let dataStartRow = -1;
+            
+            // 데이터 시작 행 찾기
+            for (let i = 0; i < Math.min(30, data.length); i++) {
+                const row = data[i] || [];
+                
+                // 거래일시 패턴이 있는 행 찾기
+                for (let j = 0; j < row.length; j++) {
+                    const cell = String(row[j] || '');
+                    if (cell.match(/\d{4}\.\d{2}\.\d{2}/)) {
+                        dataStartRow = i;
+                        break;
+                    }
+                }
+                
+                if (dataStartRow >= 0) break;
+            }
+            
+            debugLog('데이터 시작 행', dataStartRow);
+            
+            if (dataStartRow === -1) {
+                throw new Error('카카오뱅크 거래 데이터 시작점을 찾을 수 없습니다.');
+            }
+            
+            // 컬럼 매핑 (카카오뱅크 고정 구조)
+            const columnMap = {
+                date: 1,        // 거래일시
+                type: 2,        // 입출금 구분
+                amount: 3,      // 금액
+                balance: 4,     // 잔액
+                description: 6  // 내용
             };
             
-            if (!headers || !Array.isArray(headers)) {
-                console.log('헤더가 없어서 기본 매핑 사용');
-                return map;
+            // 데이터 파싱
+            for (let i = dataStartRow; i < data.length; i++) {
+                const row = data[i] || [];
+                
+                try {
+                    const transaction = parseKakaoBankRow(row, columnMap, i);
+                    if (transaction) {
+                        transactions.push(transaction);
+                    }
+                } catch (error) {
+                    debugLog(`행 ${i} 파싱 실패`, error.message);
+                }
             }
             
-            console.log('헤더 분석 중:', headers);
+            debugLog('카카오뱅크 파싱 완료', { count: transactions.length });
+            return transactions;
+        }
+        
+        // 카카오뱅크 개별 행 파싱
+        function parseKakaoBankRow(row, columnMap, rowIndex) {
+            if (!row || row.length < 4) return null;
             
-            // 카카오뱅크 특화 헤더 감지
-            let isKakaoBankFormat = false;
+            const dateStr = String(row[columnMap.date] || '').trim();
+            const typeStr = String(row[columnMap.type] || '').trim();
+            const amountStr = String(row[columnMap.amount] || '').trim();
+            const descStr = String(row[columnMap.description] || '').trim();
             
-            for (let i = 0; i < headers.length; i++) {
-                const header = String(headers[i] || '').toLowerCase().trim();
+            // 날짜 유효성 검사
+            if (!dateStr.match(/\d{4}\.\d{2}\.\d{2}/)) {
+                return null;
+            }
+            
+            // 입금 여부 확인
+            if (!typeStr.includes('입금')) {
+                return null;
+            }
+            
+            // 금액 파싱
+            const amount = parseAmount(amountStr);
+            if (amount <= 0) {
+                return null;
+            }
+            
+            // 날짜 포맷팅
+            const date = formatDate(dateStr);
+            if (!date) {
+                return null;
+            }
+            
+            return {
+                date: date,
+                description: descStr || '카카오뱅크 입금',
+                amount: amount,
+                type: '입금',
+                source: 'kakaobank',
+                raw: row.join('|'),
+                rowIndex: rowIndex
+            };
+        }
+        
+        // 강화된 CSV 파싱
+        function parseCSVEnhanced(csvText) {
+            debugLog('CSV 파싱 시작');
+            
+            const lines = csvText.split('\n').filter(line => line.trim());
+            if (lines.length < 2) {
+                throw new Error('CSV 파일에 충분한 데이터가 없습니다.');
+            }
+            
+            const transactions = [];
+            const headers = parseCSVLine(lines[0]);
+            const columnMap = analyzeCSVHeaders(headers);
+            
+            debugLog('CSV 헤더 분석', { headers, columnMap });
+            
+            for (let i = 1; i < lines.length; i++) {
+                try {
+                    const values = parseCSVLine(lines[i]);
+                    const transaction = extractTransactionFromRow(values, columnMap, i);
+                    if (transaction) {
+                        transactions.push(transaction);
+                    }
+                } catch (error) {
+                    debugLog(`CSV 행 ${i} 파싱 실패`, error.message);
+                }
+            }
+            
+            debugLog('CSV 파싱 완료', { count: transactions.length });
+            return transactions;
+        }
+        
+        // 강화된 Excel 파싱
+        function parseExcelEnhanced(data) {
+            debugLog('Excel 파싱 시작', { rows: data.length });
+            
+            if (!data || data.length < 2) {
+                throw new Error('Excel 파일에 충분한 데이터가 없습니다.');
+            }
+            
+            const transactions = [];
+            
+            // 헤더 행 찾기
+            let headerRow = -1;
+            const headerKeywords = ['날짜', '일시', '금액', '내용', '적요', '상대방'];
+            
+            for (let i = 0; i < Math.min(10, data.length); i++) {
+                const row = data[i] || [];
+                let keywordCount = 0;
                 
-                if (header.includes('거래일시') && header.includes('구분') && 
-                    (i + 1 < headers.length && String(headers[i + 1]).includes('구분'))) {
-                    isKakaoBankFormat = true;
-                    console.log('카카오뱅크 헤더 형식 감지됨');
+                for (const cell of row) {
+                    const cellStr = String(cell || '').toLowerCase();
+                    if (headerKeywords.some(keyword => cellStr.includes(keyword))) {
+                        keywordCount++;
+                    }
+                }
+                
+                if (keywordCount >= 2) {
+                    headerRow = i;
                     break;
                 }
             }
             
-            if (isKakaoBankFormat) {
-                // 카카오뱅크 고정 매핑 사용
-                map.date = 1;        // 거래일시
-                map.type = 2;        // 구분
-                map.amount = 3;      // 거래금액  
-                map.balance = 4;     // 거래 후 잔액
-                map.description = 6; // 내용
-                
-                console.log('카카오뱅크 전용 매핑 적용:', map);
-                return map;
+            debugLog('Excel 헤더 행', headerRow);
+            
+            const headers = headerRow >= 0 ? data[headerRow] : data[0];
+            const columnMap = analyzeExcelHeaders(headers);
+            const startRow = headerRow >= 0 ? headerRow + 1 : 1;
+            
+            debugLog('Excel 컬럼 매핑', columnMap);
+            
+            // 데이터 파싱
+            for (let i = startRow; i < data.length; i++) {
+                try {
+                    const row = data[i] || [];
+                    const transaction = extractTransactionFromRow(row, columnMap, i);
+                    if (transaction) {
+                        transactions.push(transaction);
+                    }
+                } catch (error) {
+                    debugLog(`Excel 행 ${i} 파싱 실패`, error.message);
+                }
             }
             
-            // 일반 Excel 헤더 분석
+            debugLog('Excel 파싱 완료', { count: transactions.length });
+            return transactions;
+        }
+        
+        // CSV 헤더 분석
+        function analyzeCSVHeaders(headers) {
+            const map = { date: 0, description: 1, amount: 2, balance: 3 };
+            
             headers.forEach((header, index) => {
-                if (!header) return;
-                const h = String(header).toLowerCase().trim();
+                const h = header.toLowerCase().trim();
                 
-                // 날짜 컬럼
-                if (h.includes('날짜') || h.includes('일자') || h.includes('date') || 
-                    h.includes('거래일') || h.includes('처리일') || h.includes('거래일시')) {
+                if (h.includes('날짜') || h.includes('일자') || h.includes('date')) {
                     map.date = index;
-                    console.log(`날짜 컬럼 발견: ${index} (${header})`);
-                }
-                // 입금 전용 컬럼
-                else if ((h.includes('입금') && !h.includes('출금')) || 
-                         h === '입금액' || h === '입금금액') {
-                    map.deposit = index;
-                    console.log(`입금 컬럼 발견: ${index} (${header})`);
-                }
-                // 출금 전용 컬럼
-                else if ((h.includes('출금') && !h.includes('입금')) || 
-                         h === '출금액' || h === '출금금액') {
-                    map.withdraw = index;
-                    console.log(`출금 컬럼 발견: ${index} (${header})`);
-                }
-                // 입출금 구분 컬럼
-                else if (h.includes('입금') && h.includes('출금') || 
-                         h.includes('구분') || h.includes('거래구분') || h.includes('type')) {
-                    map.type = index;
-                    console.log(`입출금 구분 컬럼 발견: ${index} (${header})`);
-                }
-                // 거래내용 컬럼
-                else if (h.includes('내용') || h.includes('적요') || h.includes('description') || 
-                         h.includes('거래내용') || h.includes('상대방') || h.includes('입금자') ||
-                         h.includes('메모') || h.includes('비고')) {
+                } else if (h.includes('내용') || h.includes('적요') || h.includes('description')) {
                     map.description = index;
-                    console.log(`거래내용 컬럼 발견: ${index} (${header})`);
-                }
-                // 일반 금액 컬럼 (입금/출금 구분이 없는 경우)
-                else if (h.includes('금액') || h.includes('amount') || h.includes('거래금액')) {
-                    if (map.deposit === -1 && map.withdraw === -1) { // 별도 입출금 컬럼이 없으면
-                        map.amount = index;
-                        console.log(`일반 금액 컬럼 발견: ${index} (${header})`);
-                    }
-                }
-                // 잔액 컬럼
-                else if (h.includes('잔액') || h.includes('balance') || h.includes('잔고')) {
+                } else if (h.includes('금액') || h.includes('amount') || h.includes('입금')) {
+                    map.amount = index;
+                } else if (h.includes('잔액') || h.includes('balance')) {
                     map.balance = index;
-                    console.log(`잔액 컬럼 발견: ${index} (${header})`);
                 }
             });
             
-            // 입금 컬럼이 있으면 그것을 주 금액 컬럼으로 사용
-            if (map.deposit >= 0) {
-                map.amount = map.deposit;
-                console.log('입금 컬럼을 주 금액 컬럼으로 설정');
+            return map;
+        }
+        
+        // Excel 헤더 분석
+        function analyzeExcelHeaders(headers) {
+            const map = { date: 0, description: 1, amount: 2, balance: 3, type: -1 };
+            
+            if (!headers) return map;
+            
+            headers.forEach((header, index) => {
+                const h = String(header || '').toLowerCase().trim();
+                
+                if (h.includes('날짜') || h.includes('일시') || h.includes('date')) {
+                    map.date = index;
+                } else if (h.includes('내용') || h.includes('적요') || h.includes('description')) {
+                    map.description = index;
+                } else if (h.includes('금액') || h.includes('amount')) {
+                    map.amount = index;
+                } else if (h.includes('잔액') || h.includes('balance')) {
+                    map.balance = index;
+                } else if (h.includes('구분') || h.includes('type')) {
+                    map.type = index;
+                }
+            });
+            
+            return map;
+        }
+        
+        // CSV 라인 파싱
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current.trim());
+                    current = '';
+                } else {
+                    current += char;
+                }
             }
             
-            console.log('최종 컬럼 매핑:', map);
-            return map;
+            result.push(current.trim());
+            return result;
+        }
+        
+        // 행에서 거래 정보 추출
+        function extractTransactionFromRow(row, columnMap, rowNum) {
+            try {
+                const date = formatDate(row[columnMap.date]);
+                const description = String(row[columnMap.description] || '').trim();
+                const amount = parseAmount(row[columnMap.amount]);
+                
+                if (!date || !description || amount <= 0) {
+                    return null;
+                }
+                
+                // 입금 여부 확인
+                let isDeposit = true;
+                if (columnMap.type >= 0) {
+                    const type = String(row[columnMap.type] || '').toLowerCase();
+                    isDeposit = type.includes('입금') || type.includes('+');
+                }
+                
+                if (!isDeposit) {
+                    return null;
+                }
+                
+                return {
+                    date: date,
+                    description: description,
+                    amount: amount,
+                    type: '입금',
+                    balance: parseAmount(row[columnMap.balance]) || 0,
+                    raw: row.join('|'),
+                    rowIndex: rowNum
+                };
+                
+            } catch (error) {
+                debugLog(`행 ${rowNum} 추출 실패`, error.message);
+                return null;
+            }
+        }
+        
+        // 금액 파싱 (강화됨)
+        function parseAmount(amountStr) {
+            if (!amountStr) return 0;
+            
+            let cleanAmount = String(amountStr).trim();
+            
+            // 괄호로 둘러싸인 음수 처리
+            if (cleanAmount.startsWith('(') && cleanAmount.endsWith(')')) {
+                cleanAmount = '-' + cleanAmount.slice(1, -1);
+            }
+            
+            // 특수문자 제거 (숫자, 소수점, 마이너스만 남김)
+            cleanAmount = cleanAmount.replace(/[^0-9.-]/g, '');
+            
+            if (!cleanAmount || cleanAmount === '-') return 0;
+            
+            const parsed = parseFloat(cleanAmount) || 0;
+            return Math.abs(parsed); // 입금은 항상 양수
+        }
+        
+        // 날짜 포맷팅 (강화됨)
+        function formatDate(dateValue) {
+            if (!dateValue) return '';
+            
+            if (typeof dateValue === 'number') {
+                // Excel 시리얼 날짜
+                const date = new Date((dateValue - 25569) * 86400 * 1000);
+                return date.toISOString().split('T')[0];
+            }
+            
+            const dateStr = String(dateValue).trim();
+            
+            // 다양한 날짜 형식 처리
+            const patterns = [
+                /(\d{4})-(\d{2})-(\d{2})/,           // 2024-01-01
+                /(\d{4})\.(\d{2})\.(\d{2})/,         // 2024.01.01
+                /(\d{2})\/(\d{2})\/(\d{4})/,         // 01/01/2024
+                /(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/ // 2024년 1월 1일
+            ];
+            
+            for (const pattern of patterns) {
+                const match = dateStr.match(pattern);
+                if (match) {
+                    if (match[3] && match[3].length === 4) {
+                        // MM/DD/YYYY 형식
+                        return `${match[3]}-${match[1].padStart(2, '0')}-${match[2].padStart(2, '0')}`;
+                    } else {
+                        // YYYY-MM-DD 형식
+                        return `${match[1]}-${match[2].padStart(2, '0')}-${match[3].padStart(2, '0')}`;
+                    }
+                }
+            }
+            
+            // 일반적인 Date 파싱
+            try {
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) {
+                    return date.toISOString().split('T')[0];
+                }
+            } catch (error) {
+                debugLog('날짜 파싱 실패', dateStr);
+            }
+            
+            return '';
         }
         
         // 파일 읽기
@@ -1662,1044 +1867,10 @@
             });
         }
         
-        // 은행 데이터 파싱 (강화된 에러 처리)
-        async function parseBankData(data, fileName) {
-            let transactions = [];
-            
-            try {
-                console.log('=== 파일 파싱 시작 ===');
-                console.log('파일명:', fileName);
-                console.log('데이터 타입:', typeof data);
-                console.log('데이터 길이:', Array.isArray(data) ? data.length : data.length);
-                console.log('데이터 샘플:', Array.isArray(data) ? data.slice(0, 3) : data.substring(0, 200));
-                
-                // 카카오뱅크 형식 감지
-                const isKakaoBank = detectKakaoBank(data, fileName);
-                console.log('카카오뱅크 형식 감지:', isKakaoBank);
-                
-                if (isKakaoBank && Array.isArray(data)) {
-                    console.log('카카오뱅크 파싱 시도...');
-                    try {
-                        transactions = parseKakaoBankData(data);
-                        console.log('카카오뱅크 파싱 성공:', transactions.length, '건');
-                    } catch (kakaoError) {
-                        console.error('카카오뱅크 파싱 실패:', kakaoError);
-                        console.log('일반 Excel 파싱으로 대체 시도...');
-                        transactions = parseExcelData(data);
-                    }
-                } else if (typeof data === 'string') {
-                    console.log('CSV 파싱 시도...');
-                    transactions = parseCSVData(data);
-                } else if (Array.isArray(data)) {
-                    console.log('일반 Excel 파싱 시도...');
-                    transactions = parseExcelData(data);
-                } else {
-                    throw new Error('지원하지 않는 데이터 형식입니다.');
-                }
-                
-                console.log('파싱된 전체 거래:', transactions.length);
-                
-                // 입금 거래만 필터링 (안전장치)
-                const depositTransactions = transactions.filter(t => {
-                    const isDeposit = !t.type || t.type === '입금' || t.amount > 0;
-                    if (!isDeposit) {
-                        console.log('출금 거래 제외:', t);
-                    }
-                    return isDeposit;
-                });
-                
-                console.log('입금 거래 필터링 후:', depositTransactions.length);
-                
-                if (depositTransactions.length === 0) {
-                    console.warn('입금 거래를 찾을 수 없습니다.');
-                    
-                    // 디버깅 정보 출력
-                    console.log('전체 거래 샘플:', transactions.slice(0, 3));
-                    
-                    if (transactions.length > 0) {
-                        throw new Error(`파일에서 ${transactions.length}건의 거래를 찾았지만 입금 거래가 없습니다. 파일 형식을 확인해주세요.`);
-                    } else {
-                        throw new Error('파일에서 유효한 거래내역을 찾을 수 없습니다. 파일 형식이나 내용을 확인해주세요.');
-                    }
-                }
-                
-                // 중복 거래 확인 및 제거
-                const { uniqueTransactions, duplicates } = await filterDuplicateTransactions(depositTransactions);
-                
-                console.log(`중복 제거 결과: 전체 ${depositTransactions.length}건 → 신규 ${uniqueTransactions.length}건 (중복 ${duplicates.length}건)`);
-                
-                if (duplicates.length > 0) {
-                    console.log('중복된 거래들:', duplicates);
-                    showDuplicateWarning(duplicates.length);
-                }
-                
-                return uniqueTransactions;
-                
-            } catch (error) {
-                console.error('=== 파싱 오류 ===');
-                console.error('오류 메시지:', error.message);
-                console.error('스택:', error.stack);
-                console.error('파일 정보:', { fileName, dataType: typeof data });
-                
-                // 구체적인 오류 메시지 제공
-                let userFriendlyMessage = error.message;
-                
-                if (error.message.includes('카카오뱅크 거래 데이터를 찾을 수 없습니다')) {
-                    userFriendlyMessage = '카카오뱅크 파일로 인식했지만 거래 데이터를 찾을 수 없습니다.\n\n다음을 확인해주세요:\n1. 카카오뱅크 앱에서 "거래내역 다운로드" 기능 사용\n2. Excel 형식(.xlsx)로 다운로드\n3. 거래 내역이 포함된 파일인지 확인';
-                } else if (error.message.includes('충분한 데이터가 없습니다')) {
-                    userFriendlyMessage = '파일에 충분한 데이터가 없습니다.\n\n거래내역이 포함된 올바른 파일을 업로드해주세요.';
-                } else if (error.message.includes('지원하지 않는')) {
-                    userFriendlyMessage = '지원하지 않는 파일 형식입니다.\n\n지원 형식:\n- 카카오뱅크: Excel (.xlsx) 거래내역\n- 기타 은행: CSV 또는 Excel 형식\n- 입금 거래 내역만 처리됩니다';
-                }
-                
-                throw new Error(userFriendlyMessage);
-            }
-        }
-        
-        // 카카오뱅크 형식 감지 (더 유연한 방식)
-        function detectKakaoBank(data, fileName) {
-            console.log('카카오뱅크 형식 감지 시작:', fileName);
-            
-            // 파일명 체크
-            if (fileName && (fileName.toLowerCase().includes('카카오') || fileName.toLowerCase().includes('kakao'))) {
-                console.log('파일명으로 카카오뱅크 감지');
-                return true;
-            }
-            
-            // 데이터 내용 체크
-            if (Array.isArray(data) && data.length > 0) {
-                console.log('데이터 구조 분석 중, 총 행 수:', data.length);
-                console.log('첫 3행 데이터:', data.slice(0, 3));
-                
-                // 전체 데이터에서 카카오뱅크 관련 텍스트 찾기
-                for (let i = 0; i < Math.min(20, data.length); i++) {
-                    const row = data[i];
-                    if (!row || !Array.isArray(row)) continue;
-                    
-                    for (let j = 0; j < row.length; j++) {
-                        const cell = String(row[j] || '');
-                        if (cell.includes('카카오뱅크') || cell.includes('카카오') || 
-                            cell.includes('KakaoBank') || cell.includes('KAKAO')) {
-                            console.log(`행 ${i}, 열 ${j}에서 카카오뱅크 관련 텍스트 발견:`, cell);
-                            return true;
-                        }
-                    }
-                }
-                
-                // 거래일시 형식 체크 (다양한 패턴)
-                for (let i = 0; i < Math.min(30, data.length); i++) {
-                    const row = data[i];
-                    if (!row || !Array.isArray(row)) continue;
-                    
-                    for (let j = 0; j < Math.min(5, row.length); j++) {
-                        const cell = String(row[j] || '');
-                        
-                        // 카카오뱅크 특화 날짜 형식들
-                        if (cell.match(/\d{4}\.\d{2}\.\d{2}\s+\d{2}:\d{2}:\d{2}/) ||  // 2025.06.10 12:22:56
-                            cell.match(/\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}/) ||  // 2025-06-10 12:22:56
-                            cell.match(/\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}/) ||     // 06/10/2025 12:22
-                            (cell.match(/\d{4}\.\d{2}\.\d{2}/) && cell.length <= 12)) { // 2025.06.10
-                            console.log(`행 ${i}, 열 ${j}에서 카카오뱅크 날짜 형식 발견:`, cell);
-                            return true;
-                        }
-                    }
-                }
-            }
-            
-            console.log('카카오뱅크 형식 감지 실패');
-            return false;
-        }
-        
-        // 중복 거래 필터링
-        async function filterDuplicateTransactions(transactions) {
-            const uniqueTransactions = [];
-            const duplicates = [];
-            
-            try {
-                // 기존 처리된 거래들 가져오기
-                const processedTransactions = await getProcessedTransactions();
-                console.log('기존 처리된 거래:', processedTransactions.length, '건');
-                
-                for (const transaction of transactions) {
-                    const isDuplicate = checkDuplicateTransaction(transaction, processedTransactions);
-                    
-                    if (isDuplicate) {
-                        duplicates.push(transaction);
-                        console.log('중복 거래 발견:', transaction.uniqueKey);
-                    } else {
-                        uniqueTransactions.push(transaction);
-                    }
-                }
-                
-                return { uniqueTransactions, duplicates };
-                
-            } catch (error) {
-                console.error('중복 확인 오류:', error);
-                // 오류 발생 시 모든 거래를 신규로 처리
-                return { uniqueTransactions: transactions, duplicates: [] };
-            }
-        }
-        
-        // 기존 처리된 거래들 가져오기
-        async function getProcessedTransactions() {
-            try {
-                // payment_logs 시트에서 기존 거래들 가져오기
-                const response = await fetch(
-                    `${SHEET_CONFIG.BASE_URL}/${SHEET_CONFIG.SHEET_ID}/values/payment_logs!A:F?key=${SHEET_CONFIG.API_KEY}`
-                );
-                
-                if (!response.ok) {
-                    console.log('payment_logs 시트가 없거나 접근할 수 없습니다.');
-                    return [];
-                }
-                
-                const data = await response.json();
-                
-                if (data.values && data.values.length > 1) {
-                    return data.values.slice(1).map(row => ({
-                        timestamp: row[0],
-                        fee_id: row[1],
-                        customer_id: row[2],
-                        amount: parseFloat(row[3]) || 0,
-                        date: row[4],
-                        description: row[5] || ''
-                    }));
-                }
-                
-                return [];
-                
-            } catch (error) {
-                console.error('기존 거래 조회 오류:', error);
-                return [];
-            }
-        }
-        
-        // 중복 거래 확인
-        function checkDuplicateTransaction(newTransaction, processedTransactions) {
-            // 고유 키로 먼저 확인
-            const duplicateByKey = processedTransactions.some(processed => {
-                const processedKey = generateTransactionKey(
-                    processed.date, 
-                    processed.amount, 
-                    processed.description
-                );
-                return processedKey === newTransaction.uniqueKey;
-            });
-            
-            if (duplicateByKey) {
-                return true;
-            }
-            
-            // 날짜 + 금액 + 설명 유사도로 확인
-            const duplicateBySimilarity = processedTransactions.some(processed => {
-                const sameDate = processed.date === newTransaction.date;
-                const sameAmount = Math.abs(processed.amount - newTransaction.amount) < 100; // 100원 오차
-                const similarDesc = calculateSimilarity(processed.description, newTransaction.description) > 0.8;
-                
-                return sameDate && sameAmount && similarDesc;
-            });
-            
-            return duplicateBySimilarity;
-        }
-        
-        // 문자열 유사도 계산 (간단한 버전)
-        function calculateSimilarity(str1, str2) {
-            if (!str1 || !str2) return 0;
-            
-            const s1 = str1.toLowerCase().trim();
-            const s2 = str2.toLowerCase().trim();
-            
-            if (s1 === s2) return 1;
-            
-            const longer = s1.length > s2.length ? s1 : s2;
-            const shorter = s1.length > s2.length ? s2 : s1;
-            
-            if (longer.length === 0) return 1;
-            
-            const editDistance = getEditDistance(longer, shorter);
-            return (longer.length - editDistance) / longer.length;
-        }
-        
-        // 편집 거리 계산 (레벤시타인 거리)
-        function getEditDistance(str1, str2) {
-            const matrix = Array(str2.length + 1).fill().map(() => Array(str1.length + 1).fill(0));
-            
-            for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
-            for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
-            
-            for (let j = 1; j <= str2.length; j++) {
-                for (let i = 1; i <= str1.length; i++) {
-                    const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
-                    matrix[j][i] = Math.min(
-                        matrix[j - 1][i] + 1,
-                        matrix[j][i - 1] + 1,
-                        matrix[j - 1][i - 1] + cost
-                    );
-                }
-            }
-            
-            return matrix[str2.length][str1.length];
-        }
-        
-        // 중복 경고 메시지 표시
-        function showDuplicateWarning(count) {
-            const warningDiv = document.createElement('div');
-            warningDiv.style.cssText = `
-                background: #fff3cd;
-                color: #856404;
-                border: 1px solid #ffeaa7;
-                border-radius: 8px;
-                padding: 15px;
-                margin: 15px 0;
-                font-weight: 600;
-            `;
-            warningDiv.innerHTML = `
-                ⚠️ 중복된 거래 ${count}건이 발견되어 제외되었습니다.<br>
-                이미 처리된 거래는 자동으로 무시됩니다.
-            `;
-            
-            const uploadSection = document.querySelector('.bank-upload-section');
-            uploadSection.appendChild(warningDiv);
-            
-            // 5초 후 자동 제거
-            setTimeout(() => {
-                if (warningDiv.parentNode) {
-                    warningDiv.parentNode.removeChild(warningDiv);
-                }
-            }, 5000);
-        }
-        
-        // CSV 데이터 파싱 (강화된 버전)
-        function parseCSVData(csvText) {
-            const lines = csvText.split('\n').filter(line => line.trim());
-            if (lines.length < 2) throw new Error('CSV 파일에 충분한 데이터가 없습니다.');
-            
-            console.log('CSV 라인 수:', lines.length);
-            console.log('첫 번째 라인 (헤더):', lines[0]);
-            console.log('두 번째 라인 (데이터):', lines[1]);
-            
-            const transactions = [];
-            const header = lines[0];
-            
-            // 헤더 분석 (한국 은행들의 다양한 형식 지원)
-            const columnMap = analyzeCSVHeaders(header.split(','));
-            console.log('컬럼 매핑:', columnMap);
-            
-            for (let i = 1; i < lines.length; i++) {
-                const values = parseCSVLine(lines[i]);
-                if (values.length >= 3) {
-                    const transaction = extractTransactionFromRow(values, columnMap, i + 1);
-                    if (transaction) {
-                        transactions.push(transaction);
-                    }
-                }
-            }
-            
-            return transactions;
-        }
-        
-        // CSV 라인 파싱
-        function parseCSVLine(line) {
-            const result = [];
-            let current = '';
-            let inQuotes = false;
-            
-            for (let i = 0; i < line.length; i++) {
-                const char = line[i];
-                
-                if (char === '"') {
-                    inQuotes = !inQuotes;
-                } else if (char === ',' && !inQuotes) {
-                    result.push(current.trim());
-                    current = '';
-                } else {
-                    current += char;
-                }
-            }
-            
-            result.push(current.trim());
-            return result;
-        }
-        
-        // Excel 데이터 파싱 (강화된 버전)
-        function parseExcelData(data) {
-            if (!data || data.length < 2) {
-                throw new Error('Excel 파일에 충분한 데이터가 없습니다.');
-            }
-            
-            console.log('=== Excel 데이터 파싱 시작 ===');
-            console.log('Excel 데이터 행 수:', data.length);
-            console.log('첫 5행 미리보기:', data.slice(0, 5));
-            
-            const transactions = [];
-            
-            // 1단계: 헤더 행 찾기 (더 정확한 헤더 감지)
-            let headerRow = -1;
-            const headerKeywords = ['거래일시', '일시', '입금', '출금', '금액', '잔액', '내용', '적요', '상대방', '구분'];
-            
-            for (let i = 0; i < Math.min(15, data.length); i++) {
-                const row = data[i] || [];
-                let headerCount = 0;
-                let hasMainKeywords = false;
-                
-                for (let j = 0; j < Math.min(10, row.length); j++) {
-                    const cell = String(row[j] || '').toLowerCase().trim();
-                    if (headerKeywords.some(keyword => cell.includes(keyword))) {
-                        headerCount++;
-                        
-                        // 핵심 키워드 확인 (거래일시, 금액 등)
-                        if (cell.includes('거래일시') || cell.includes('거래금액') || cell.includes('금액')) {
-                            hasMainKeywords = true;
-                        }
-                    }
-                }
-                
-                // 3개 이상의 헤더 키워드가 있고 핵심 키워드가 포함되어 있으면 헤더로 판단
-                if (headerCount >= 3 && hasMainKeywords) {
-                    headerRow = i;
-                    console.log(`Excel 헤더 행 발견: ${headerRow}번째 행`, row);
-                    break;
-                }
-            }
-            
-            // 2단계: 컬럼 매핑 분석
-            const headers = headerRow >= 0 ? data[headerRow] : data[0];
-            const columnMap = analyzeExcelHeaders(headers);
-            console.log('Excel 컬럼 매핑:', columnMap);
-            
-            // 3단계: 데이터 시작 행 결정
-            const startRow = headerRow >= 0 ? headerRow + 1 : 1;
-            console.log('데이터 시작 행:', startRow);
-            
-            // 4단계: 거래내역 파싱
-            for (let i = startRow; i < data.length; i++) {
-                const row = data[i] || [];
-                if (row.length < 3) continue; // 최소 3개 컬럼 필요
-                
-                try {
-                    const transaction = extractTransactionFromRow(row, columnMap, i + 1);
-                    if (transaction) {
-                        // 입금 여부 확인 (금액이 양수이거나 별도 입금 컬럼이 있는 경우)
-                        const isDeposit = transaction.amount > 0 || 
-                                        (row[columnMap.deposit] && parseAmount(row[columnMap.deposit]) > 0);
-                        
-                        if (isDeposit) {
-                            transaction.source = 'excel';
-                            transactions.push(transaction);
-                        } else {
-                            console.log(`행 ${i + 1} 스킵: 출금 거래 (금액: ${transaction.amount})`);
-                        }
-                    }
-                } catch (error) {
-                    console.warn(`행 ${i + 1} 파싱 실패:`, error.message);
-                    continue;
-                }
-            }
-            
-            console.log(`Excel 파싱 완료: ${transactions.length}건의 입금 거래`);
-            
-            if (transactions.length === 0) {
-                console.warn('Excel 파일에서 유효한 입금 거래를 찾을 수 없습니다.');
-                console.log('샘플 데이터 분석:');
-                for (let i = 0; i < Math.min(5, data.length); i++) {
-                    console.log(`행 ${i}:`, data[i]);
-                }
-            }
-            
-            return transactions;
-        }
-        
-        // 카카오뱅크 전용 파싱 함수 (강화된 버전)
-        function parseKakaoBankData(data) {
-            let transactions = [];
-            
-            try {
-                console.log('카카오뱅크 데이터 파싱 시작, 총 행 수:', data.length);
-                console.log('첫 5행 미리보기:', data.slice(0, 5));
-                
-                // 1단계: 헤더 행 찾기 (거래일시, 입금/출금, 금액 등이 포함된 행)
-                let headerRow = -1;
-                const headerKeywords = ['거래일시', '일시', '입금', '출금', '금액', '잔액', '내용', '적요'];
-                
-                for (let i = 0; i < Math.min(20, data.length); i++) {
-                    const row = data[i];
-                    if (!row || !Array.isArray(row)) continue;
-                    
-                    let headerCount = 0;
-                    for (let j = 0; j < row.length; j++) {
-                        const cell = String(row[j] || '').toLowerCase();
-                        if (headerKeywords.some(keyword => cell.includes(keyword))) {
-                            headerCount++;
-                        }
-                    }
-                    
-                    if (headerCount >= 3) { // 3개 이상의 헤더 키워드가 있으면 헤더로 판단
-                        headerRow = i;
-                        console.log(`헤더 행 발견: ${headerRow}번째 행`, row);
-                        break;
-                    }
-                }
-                
-                // 2단계: 데이터 시작 행 찾기 (실제 거래 데이터) - 카카오뱅크 구조에 맞게 수정
-                let startRow = -1;
-                const startSearchFrom = headerRow >= 0 ? headerRow + 1 : 0;
-                
-                for (let i = startSearchFrom; i < Math.min(50, data.length); i++) {
-                    const row = data[i];
-                    if (!row || !Array.isArray(row) || row.length < 4) continue;
-                    
-                    // 카카오뱅크는 두 번째 컬럼(인덱스 1)에 거래일시가 있음
-                    const dateCell = String(row[1] || '');
-                    const typeCell = String(row[2] || '');
-                    const amountCell = String(row[3] || '');
-                    
-                    console.log(`행 ${i} 검사: 날짜="${dateCell}", 구분="${typeCell}", 금액="${amountCell}"`);
-                    
-                    // 날짜 형식 패턴 확인 (카카오뱅크 형식)
-                    const datePatterns = [
-                        /\d{4}\.\d{2}\.\d{2}(\s+\d{2}:\d{2}:\d{2})?/,  // 2025.06.10 12:22:56
-                        /\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2}:\d{2})?/,   // 2025-06-10 12:22:56
-                    ];
-                    
-                    const hasDatePattern = datePatterns.some(pattern => pattern.test(dateCell));
-                    console.log(`행 ${i} 날짜 패턴 확인:`, hasDatePattern);
-                    
-                    if (hasDatePattern) {
-                        // 입출금 구분 확인
-                        const hasTypePattern = typeCell.includes('입금') || typeCell.includes('출금');
-                        console.log(`행 ${i} 입출금 구분 확인:`, hasTypePattern);
-                        
-                        // 금액 패턴 확인 (숫자, 쉼표, 마이너스 포함)
-                        const hasAmountPattern = /^-?[\d,]+$/.test(amountCell.replace(/\s/g, '')) && amountCell.replace(/[,\s-]/g, '').length >= 1;
-                        console.log(`행 ${i} 금액 패턴 확인:`, hasAmountPattern, `원본: "${amountCell}"`);
-                        
-                        if (hasTypePattern && hasAmountPattern) {
-                            startRow = i;
-                            console.log(`✅ 데이터 시작 행 발견: ${startRow}번째 행`, row);
-                            break;
-                        }
-                    }
-                }
-                
-                if (startRow === -1) {
-                    console.warn('데이터 시작 행을 찾을 수 없음. 일반 Excel 파싱으로 전환합니다.');
-                    // 카카오뱅크가 아닌 일반 Excel로 파싱 시도
-                    return parseExcelData(data);
-                }
-                
-                // 3단계: 컬럼 매핑 분석
-                const sampleRow = data[startRow];
-                const columnMap = analyzeKakaoBankColumns(data[headerRow] || sampleRow, sampleRow);
-                console.log('카카오뱅크 컬럼 매핑:', columnMap);
-                
-                // 4단계: 거래내역 파싱 (추가 디버깅)
-                for (let i = startRow; i < data.length; i++) {
-                    const row = data[i];
-                    if (!row || !Array.isArray(row) || row.length < 4) {
-                        console.log(`행 ${i} 스킵: 데이터 부족`, row);
-                        continue;
-                    }
-                    
-                    // 샘플 로그 (처음 5개 행만)
-                    if (i - startRow < 5) {
-                        console.log(`행 ${i} 상세 데이터:`, {
-                            전체: row,
-                            날짜: row[1],
-                            구분: row[2],
-                            금액: row[3],
-                            잔액: row[4],
-                            구분2: row[5],
-                            내용: row[6]
-                        });
-                    }
-                    
-                    const transaction = parseKakaoBankRow(row, i + 1, columnMap);
-                    if (transaction) {
-                        transactions.push(transaction);
-                        console.log(`행 ${i} 거래 추가됨:`, transaction.date, transaction.amount, transaction.description);
-                    }
-                }
-                
-                console.log(`카카오뱅크 파싱 완료: ${transactions.length}건의 거래 (입금 거래만)`);
-                
-                if (transactions.length === 0) {
-                    console.warn('카카오뱅크 형식이지만 입금 거래를 찾을 수 없음. 일반 Excel 파싱으로 재시도합니다.');
-                    return parseExcelData(data);
-                }
-                
-                return transactions;
-                
-            } catch (error) {
-                console.error('카카오뱅크 파싱 오류:', error);
-                console.log('일반 Excel 파싱으로 대체 시도합니다.');
-                
-                // 오류 발생시 일반 Excel 파싱으로 대체
-                try {
-                    return parseExcelData(data);
-                } catch (fallbackError) {
-                    console.error('일반 Excel 파싱도 실패:', fallbackError);
-                    throw new Error('카카오뱅크 및 일반 Excel 파싱 모두 실패: ' + error.message);
-                }
-            }
-        }
-        
-        // 카카오뱅크 컬럼 분석 (실제 구조에 맞게 수정)
-        function analyzeKakaoBankColumns(headerRow, sampleRow) {
-            // 카카오뱅크 고정 컬럼 매핑 (실제 파일 구조 기준)
-            const map = { 
-                date: 1,        // B열: 거래일시
-                type: 2,        // C열: 구분 (입금/출금)
-                amount: 3,      // D열: 거래금액
-                balance: 4,     // E열: 거래 후 잔액
-                category: 5,    // F열: 거래구분
-                description: 6  // G열: 내용
-            };
-            
-            console.log('카카오뱅크 고정 컬럼 매핑 사용:', map);
-            
-            // 헤더가 있으면 검증
-            if (headerRow && Array.isArray(headerRow)) {
-                console.log('헤더 검증:', headerRow);
-                
-                // 헤더 확인
-                if (headerRow[1] && String(headerRow[1]).includes('거래일시')) {
-                    console.log('✅ 거래일시 컬럼 확인됨');
-                }
-                if (headerRow[2] && String(headerRow[2]).includes('구분')) {
-                    console.log('✅ 구분 컬럼 확인됨');
-                }
-                if (headerRow[3] && String(headerRow[3]).includes('거래금액')) {
-                    console.log('✅ 거래금액 컬럼 확인됨');
-                }
-            }
-            
-            // 샘플 데이터로 추가 검증
-            if (sampleRow && Array.isArray(sampleRow)) {
-                console.log('샘플 행으로 컬럼 검증:', sampleRow);
-                
-                const dateCell = String(sampleRow[1] || '');
-                const typeCell = String(sampleRow[2] || '');
-                const amountCell = String(sampleRow[3] || '');
-                
-                console.log('샘플 데이터 분석:');
-                console.log('- 날짜 셀 (컬럼 1):', dateCell);
-                console.log('- 구분 셀 (컬럼 2):', typeCell);
-                console.log('- 금액 셀 (컬럼 3):', amountCell);
-                
-                // 날짜 패턴 확인
-                if (dateCell.match(/\d{4}\.\d{2}\.\d{2}/)) {
-                    console.log('✅ 날짜 패턴 확인됨');
-                }
-                
-                // 입출금 구분 확인
-                if (typeCell.includes('입금') || typeCell.includes('출금')) {
-                    console.log('✅ 입출금 구분 확인됨');
-                }
-                
-                // 금액 패턴 확인 (숫자와 쉼표)
-                if (amountCell.match(/[\d,]+/)) {
-                    console.log('✅ 금액 패턴 확인됨');
-                }
-            }
-            
-            return map;
-        }
-        
-        // 카카오뱅크 개별 행 파싱 (수정된 컬럼 매핑 적용)
-        function parseKakaoBankRow(row, rowNum, columnMap = null) {
-            try {
-                // 카카오뱅크 고정 컬럼 매핑 사용
-                const map = columnMap || { date: 1, type: 2, amount: 3, balance: 4, category: 5, description: 6 };
-                
-                const dateTime = row[map.date];           // 거래일시
-                const type = row[map.type];               // 입금/출금
-                const amount = row[map.amount];           // 금액
-                const balance = row[map.balance];         // 잔액
-                const category = row[map.category];       // 거래구분
-                const description = row[map.description]; // 내용/메모
-                
-                console.log(`행 ${rowNum} 카카오뱅크 파싱 (매핑: ${JSON.stringify(map)}):`, {
-                    dateTime, type, amount, balance, category, description
-                });
-                
-                // 빈 행 스킵 (모든 필수 값이 비어있으면)
-                if (!dateTime && !type && !amount) {
-                    console.log(`행 ${rowNum} 스킵: 빈 행`);
-                    return null;
-                }
-                
-                // 날짜 유효성 검사
-                const dateStr = String(dateTime || '').trim();
-                if (!dateStr || !dateStr.match(/\d{4}\.\d{2}\.\d{2}/)) {
-                    console.log(`행 ${rowNum} 스킵: 유효하지 않은 날짜 (${dateStr})`);
-                    return null;
-                }
-                
-                // 입금 거래 확인
-                const typeStr = String(type || '').trim().toLowerCase();
-                const isDeposit = typeStr.includes('입금') || typeStr === '입';
-                
-                if (!isDeposit) {
-                    console.log(`행 ${rowNum} 스킵: 입금이 아님 (${typeStr})`);
-                    return null;
-                }
-                
-                const parsedAmount = parseKakaoBankAmount(amount);
-                if (parsedAmount <= 0) {
-                    console.log(`행 ${rowNum} 스킵: 금액 0 이하 (${parsedAmount})`);
-                    return null;
-                }
-                
-                // 거래 내용 조합 (우선순위: description > category > 기본값)
-                let transactionDesc = '';
-                if (description && String(description).trim()) {
-                    transactionDesc = String(description).trim();
-                } else if (category && String(category).trim()) {
-                    transactionDesc = String(category).trim();
-                } else {
-                    transactionDesc = '일반입금';
-                }
-                
-                // 거래일시 파싱
-                const formattedDate = formatKakaoBankDate(dateTime);
-                
-                // 날짜가 제대로 파싱되지 않으면 스킵
-                if (!formattedDate || formattedDate === '') {
-                    console.log(`행 ${rowNum} 스킵: 날짜 파싱 실패 (${dateTime})`);
-                    return null;
-                }
-                
-                // 중복 방지를 위한 고유 키 생성
-                const uniqueKey = generateTransactionKey(formattedDate, parsedAmount, transactionDesc);
-                
-                const transaction = {
-                    date: formattedDate,
-                    dateTime: String(dateTime || ''),
-                    description: transactionDesc,
-                    amount: parsedAmount,
-                    balance: parseKakaoBankAmount(balance) || 0,
-                    type: '입금',
-                    category: String(category || ''),
-                    uniqueKey: uniqueKey,
-                    raw: row.join('|'),
-                    rowNumber: rowNum,
-                    source: 'kakaobank'
-                };
-                
-                console.log(`행 ${rowNum} 카카오뱅크 거래 생성 성공:`, transaction);
-                return transaction;
-                
-            } catch (error) {
-                console.warn(`행 ${rowNum} 카카오뱅크 파싱 실패:`, error, row);
-                return null;
-            }
-        }
-        
-        // 카카오뱅크 금액 파싱 (쉼표 제거)
-        function parseKakaoBankAmount(amountStr) {
-            if (!amountStr) return 0;
-            
-            let cleanAmount = String(amountStr).trim();
-            
-            // 쉼표 제거
-            cleanAmount = cleanAmount.replace(/,/g, '');
-            
-            // 마이너스 기호가 앞에 있으면 제거 (입금이므로 양수로 처리)
-            cleanAmount = cleanAmount.replace(/^-/, '');
-            
-            const parsed = parseFloat(cleanAmount) || 0;
-            return Math.abs(parsed);
-        }
-        
-        // 카카오뱅크 날짜 포맷팅 (빈 값 처리 강화)
-        function formatKakaoBankDate(dateTimeStr) {
-            if (!dateTimeStr || dateTimeStr === '' || dateTimeStr === null || dateTimeStr === undefined) {
-                console.log('카카오뱅크 날짜 값이 비어있음:', dateTimeStr);
-                return '';
-            }
-            
-            const dateStr = String(dateTimeStr).trim();
-            console.log('카카오뱅크 날짜 포맷팅 시작:', dateStr);
-            
-            // 빈 문자열이나 의미없는 값 체크
-            if (!dateStr || dateStr === '' || dateStr === '-' || dateStr === 'null') {
-                console.log('유효하지 않은 카카오뱅크 날짜 문자열:', dateStr);
-                return '';
-            }
-            
-            // 패턴 1: 2025.06.10 12:22:56 또는 2025.06.10
-            let match = dateStr.match(/(\d{4})\.(\d{2})\.(\d{2})/);
-            if (match) {
-                const result = `${match[1]}-${match[2]}-${match[3]}`;
-                console.log('카카오뱅크 패턴 1 매칭:', result);
-                return result;
-            }
-            
-            // 패턴 2: 2025-06-10 12:22:56 또는 2025-06-10
-            match = dateStr.match(/(\d{4})-(\d{2})-(\d{2})/);
-            if (match) {
-                const result = `${match[1]}-${match[2]}-${match[3]}`;
-                console.log('카카오뱅크 패턴 2 매칭:', result);
-                return result;
-            }
-            
-            // 패턴 3: 06/10/2025 또는 6/10/2025
-            match = dateStr.match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-            if (match) {
-                const month = match[1].padStart(2, '0');
-                const day = match[2].padStart(2, '0');
-                const result = `${match[3]}-${month}-${day}`;
-                console.log('카카오뱅크 패턴 3 매칭:', result);
-                return result;
-            }
-            
-            // 패턴 4: 2025년 6월 10일
-            match = dateStr.match(/(\d{4})년\s*(\d{1,2})월\s*(\d{1,2})일/);
-            if (match) {
-                const month = match[2].padStart(2, '0');
-                const day = match[3].padStart(2, '0');
-                const result = `${match[1]}-${month}-${day}`;
-                console.log('카카오뱅크 패턴 4 매칭:', result);
-                return result;
-            }
-            
-            // 패턴 5: 20250610 (숫자 8자리)
-            if (/^\d{8}$/.test(dateStr)) {
-                const result = `${dateStr.substring(0,4)}-${dateStr.substring(4,6)}-${dateStr.substring(6,8)}`;
-                console.log('카카오뱅크 패턴 5 매칭:', result);
-                return result;
-            }
-            
-            // 패턴 6: Excel 날짜 시리얼 번호
-            if (/^\d{5}$/.test(dateStr)) {
-                try {
-                    const date = new Date((parseInt(dateStr) - 25569) * 86400 * 1000);
-                    const result = date.toISOString().split('T')[0];
-                    console.log('카카오뱅크 패턴 6 매칭 (Excel 시리얼):', result);
-                    return result;
-                } catch (e) {
-                    console.warn('Excel 시리얼 날짜 변환 실패:', e);
-                }
-            }
-            
-            // 패턴 7: 일반적인 날짜 파싱 시도
-            try {
-                const date = new Date(dateStr);
-                if (!isNaN(date.getTime()) && date.getFullYear() > 2000 && date.getFullYear() < 2100) {
-                    const result = date.toISOString().split('T')[0];
-                    console.log('카카오뱅크 패턴 7 매칭 (일반 Date):', result);
-                    return result;
-                }
-            } catch (e) {
-                console.warn('일반 날짜 파싱 실패:', e);
-            }
-            
-            console.warn('카카오뱅크 날짜 포맷팅 실패, 빈 문자열 반환:', dateStr);
-            return '';
-        }
-        
-        // 거래 고유 키 생성 (중복 방지용)
-        function generateTransactionKey(date, amount, description) {
-            const cleanDesc = description.replace(/\s+/g, '').toLowerCase();
-            return `${date}_${amount}_${cleanDesc}`;
-        }
-        
-        // 행에서 거래 정보 추출 (카카오뱅크 지원 강화)
-        function extractTransactionFromRow(row, columnMap, rowNum) {
-            try {
-                console.log(`행 ${rowNum} 파싱 시작 (매핑: ${JSON.stringify(columnMap)}):`, row);
-                
-                const date = formatDate(row[columnMap.date]);
-                const description = String(row[columnMap.description] || '').trim();
-                
-                // 금액 결정 (우선순위: 입금 컬럼 > 구분 컬럼 확인 > 일반 금액 컬럼)
-                let amount = 0;
-                let isDeposit = false;
-                
-                if (columnMap.deposit >= 0 && row[columnMap.deposit]) {
-                    // 별도 입금 컬럼이 있는 경우
-                    amount = parseAmount(row[columnMap.deposit]);
-                    isDeposit = amount > 0;
-                    console.log(`행 ${rowNum}: 입금 컬럼 사용 (${amount})`);
-                } else if (columnMap.type >= 0 && row[columnMap.type]) {
-                    // 입출금 구분 컬럼이 있는 경우 (카카오뱅크)
-                    const typeStr = String(row[columnMap.type]).toLowerCase().trim();
-                    isDeposit = typeStr.includes('입금') || typeStr.includes('+') || typeStr === '입';
-                    amount = parseAmount(row[columnMap.amount]);
-                    
-                    // 카카오뱅크는 음수 표시를 사용하지 않고 '입금'/'출금' 구분 사용
-                    if (isDeposit) {
-                        amount = Math.abs(amount); // 입금은 항상 양수
-                    }
-                    
-                    console.log(`행 ${rowNum}: 구분 컬럼 사용 (${typeStr} → 입금여부: ${isDeposit}, 금액: ${amount})`);
-                } else {
-                    // 일반 금액 컬럼만 있는 경우 (양수면 입금으로 가정)
-                    amount = parseAmount(row[columnMap.amount]);
-                    isDeposit = amount > 0;
-                    console.log(`행 ${rowNum}: 일반 금액 컬럼 사용 (${amount})`);
-                }
-                
-                console.log(`행 ${rowNum} 파싱 결과:`, { date, description, amount, isDeposit });
-                
-                // 유효성 검사
-                if (!date || !description || amount <= 0) {
-                    console.log(`행 ${rowNum} 스킵: 필수 값 누락 또는 금액 0 이하`);
-                    console.log(`- 날짜: "${date}" (길이: ${date.length})`);
-                    console.log(`- 설명: "${description}" (길이: ${description.length})`);
-                    console.log(`- 금액: ${amount}`);
-                    return null;
-                }
-                
-                // 입금 거래가 아니면 스킵
-                if (!isDeposit) {
-                    console.log(`행 ${rowNum} 스킵: 출금 거래`);
-                    return null;
-                }
-                
-                // 중복 방지를 위한 고유 키 생성
-                const uniqueKey = generateTransactionKey(date, amount, description);
-                
-                const transaction = {
-                    date,
-                    description,
-                    amount,
-                    balance: parseAmount(row[columnMap.balance]) || 0,
-                    type: '입금',
-                    uniqueKey,
-                    raw: row.join('|'),
-                    rowNumber: rowNum
-                };
-                
-                console.log(`행 ${rowNum} 거래 생성 성공:`, transaction);
-                return transaction;
-                
-            } catch (error) {
-                console.warn(`행 ${rowNum} 파싱 실패:`, error, row);
-                return null;
-            }
-        }
-        
-        // 금액 파싱 (텍스트 값 처리 강화)
-        function parseAmount(amountStr) {
-            if (!amountStr || amountStr === '' || amountStr === null || amountStr === undefined) {
-                console.log('금액 값이 비어있음:', amountStr);
-                return 0;
-            }
-            
-            console.log('금액 파싱 시작:', amountStr, typeof amountStr);
-            
-            let cleanAmount = String(amountStr);
-            
-            // 1. 공백 제거
-            cleanAmount = cleanAmount.trim();
-            
-            // 2. 빈 값이나 텍스트만 있는 경우 체크
-            if (cleanAmount === '' || cleanAmount === '-') {
-                console.log('금액이 빈 값이거나 하이픈:', cleanAmount);
-                return 0;
-            }
-            
-            // 3. 순수 텍스트인 경우 (숫자가 전혀 없는 경우)
-            if (!/\d/.test(cleanAmount)) {
-                console.log('숫자가 포함되지 않은 텍스트:', cleanAmount);
-                return 0;
-            }
-            
-            // 4. 쉼표 제거
-            cleanAmount = cleanAmount.replace(/,/g, '');
-            
-            // 5. 원화 표시 제거
-            cleanAmount = cleanAmount.replace(/원$/g, '');
-            
-            // 6. 괄호로 둘러싸인 음수 처리 (123) → -123
-            if (cleanAmount.startsWith('(') && cleanAmount.endsWith(')')) {
-                cleanAmount = '-' + cleanAmount.slice(1, -1);
-            }
-            
-            // 7. 숫자와 소수점, 마이너스만 남기기
-            cleanAmount = cleanAmount.replace(/[^0-9.-]/g, '');
-            
-            // 8. 빈 문자열이 된 경우
-            if (cleanAmount === '' || cleanAmount === '-' || cleanAmount === '.') {
-                console.log('정리 후 빈 값:', cleanAmount);
-                return 0;
-            }
-            
-            // 9. 여러 개의 마이너스나 소수점 처리
-            const parts = cleanAmount.split('.');
-            if (parts.length > 2) {
-                cleanAmount = parts[0] + '.' + parts.slice(1).join('');
-            }
-            
-            const parsed = parseFloat(cleanAmount) || 0;
-            
-            console.log(`금액 파싱 결과: "${amountStr}" → "${cleanAmount}" → ${parsed}`);
-            
-            // 입금은 항상 양수로 처리
-            return Math.abs(parsed);
-        }
-        
-        // 날짜 포맷팅 (빈 값 처리 강화)
-        function formatDate(dateValue) {
-            if (!dateValue || dateValue === '' || dateValue === null || dateValue === undefined) {
-                console.log('날짜 값이 비어있음:', dateValue);
-                return '';
-            }
-            
-            console.log('날짜 포맷팅 시작:', dateValue, typeof dateValue);
-            
-            if (typeof dateValue === 'number') {
-                const date = new Date((dateValue - 25569) * 86400 * 1000);
-                const result = date.toISOString().split('T')[0];
-                console.log('Excel 시리얼 날짜 변환:', dateValue, '→', result);
-                return result;
-            }
-            
-            const dateStr = String(dateValue).trim();
-            
-            // 빈 문자열이나 의미없는 값 체크
-            if (!dateStr || dateStr === '' || dateStr === '-' || dateStr === 'null') {
-                console.log('유효하지 않은 날짜 문자열:', dateStr);
-                return '';
-            }
-            
-            // 패턴별 날짜 파싱
-            if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                console.log('이미 표준 형식:', dateStr);
-                return dateStr;
-            }
-            
-            if (/^\d{4}\.\d{2}\.\d{2}/.test(dateStr)) {
-                const result = dateStr.replace(/\./g, '-').substring(0, 10);
-                console.log('점 구분자 형식 변환:', dateStr, '→', result);
-                return result;
-            }
-            
-            if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-                const parts = dateStr.split('/');
-                const result = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
-                console.log('슬래시 구분자 형식 변환:', dateStr, '→', result);
-                return result;
-            }
-            
-            try {
-                const date = new Date(dateStr);
-                if (!isNaN(date.getTime()) && date.getFullYear() > 1900 && date.getFullYear() < 2100) {
-                    const result = date.toISOString().split('T')[0];
-                    console.log('일반 Date 파싱 성공:', dateStr, '→', result);
-                    return result;
-                }
-            } catch (error) {
-                console.warn('날짜 파싱 실패:', dateStr, error);
-            }
-            
-            console.warn('날짜 포맷팅 실패, 빈 문자열 반환:', dateStr);
-            return '';
-        }
-        
         // 거래내역과 고객 매칭
         async function matchTransactions(transactions) {
+            debugLog('매칭 시작', { transactionCount: transactions.length });
+            
             const results = [];
             
             for (const transaction of transactions) {
@@ -2722,6 +1893,7 @@
                 });
             }
             
+            debugLog('매칭 완료', { resultCount: results.length });
             return results;
         }
         
@@ -2740,7 +1912,7 @@
                 let matchScore = 0;
                 const scoreDetails = {};
                 
-                // 금액 매칭
+                // 금액 매칭 (40점)
                 const amountDiff = Math.abs(fee.total_fee - amount);
                 if (amountDiff === 0) {
                     matchScore += 40;
@@ -2751,48 +1923,25 @@
                 } else if (amountDiff <= 1000) {
                     matchScore += 20;
                     scoreDetails.nearAmount = 20;
-                } else if (amountDiff <= 5000) {
-                    matchScore += 10;
-                    scoreDetails.roughAmount = 10;
                 }
                 
-                // 고객명 매칭
+                // 고객명 매칭 (35점)
                 const customerName = customer.name.toLowerCase();
                 if (description.includes(customerName)) {
-                    const nameLength = customerName.length;
-                    if (nameLength >= 3) {
-                        matchScore += 35;
-                        scoreDetails.fullName = 35;
-                    } else {
-                        matchScore += 25;
-                        scoreDetails.shortName = 25;
-                    }
+                    matchScore += 35;
+                    scoreDetails.fullName = 35;
                 }
                 
-                // 전화번호 뒷자리 매칭
+                // 전화번호 뒷자리 매칭 (20점)
                 if (customer.phone_last4 && description.includes(customer.phone_last4)) {
                     matchScore += 20;
                     scoreDetails.phoneLastFour = 20;
                 }
                 
-                // 건물명 매칭
-                const buildingName = customer.building_name.toLowerCase();
-                if (buildingName && description.includes(buildingName)) {
-                    matchScore += 15;
-                    scoreDetails.buildingName = 15;
-                }
-                
-                // 호수 매칭
-                if (customer.room_number && description.includes(customer.room_number)) {
+                // 건물명 매칭 (10점)
+                if (customer.building_name && description.toLowerCase().includes(customer.building_name.toLowerCase())) {
                     matchScore += 10;
-                    scoreDetails.roomNumber = 10;
-                }
-                
-                // 년월 매칭
-                const transactionMonth = transaction.date.substring(0, 7);
-                if (fee.year_month === transactionMonth) {
-                    matchScore += 5;
-                    scoreDetails.sameMonth = 5;
+                    scoreDetails.buildingName = 10;
                 }
                 
                 if (matchScore >= 25) {
@@ -2920,6 +2069,8 @@
             if (!result.selectedMatch || result.processed) return;
             
             try {
+                debugLog('납부 처리 시작', { index, customer: result.selectedMatch.customer.name });
+                
                 await updatePaymentStatus(result.selectedMatch.fee, result.transaction);
                 
                 result.processed = true;
@@ -2938,22 +2089,19 @@
                 
             } catch (error) {
                 console.error('납부 처리 실패:', error);
-                alert('납부 처리 중 오류가 발생했습니다: ' + error.message);
+                showError('납부 처리 실패', error.message);
             }
         }
         
-        // 실제 납부 업데이트 (JSONP 방식)
+        // 실제 납부 업데이트 (수정됨)
         async function updatePaymentStatus(fee, transaction) {
             try {
-                console.log('실제 납부 처리 시작:', {
-                    customer_id: fee.customer_id,
+                debugLog('납부 상태 업데이트 시작', {
                     fee_id: fee.fee_id,
-                    amount: transaction.amount,
-                    date: transaction.date,
-                    description: transaction.description
+                    customer_id: fee.customer_id,
+                    amount: transaction.amount
                 });
                 
-                // JSONP 요청
                 const result = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
                     action: 'updatePayment',
                     fee_id: fee.fee_id,
@@ -2967,16 +2115,16 @@
                     throw new Error(result.error || '알 수 없는 오류');
                 }
                 
-                console.log('납부 처리 성공:', result);
+                debugLog('납부 상태 업데이트 성공', result);
                 return result;
                 
             } catch (error) {
-                console.error('납부 처리 실패:', error);
-                throw new Error('납부 처리 실패: ' + error.message);
+                debugLog('납부 상태 업데이트 실패', error);
+                throw error;
             }
         }
         
-        // 일괄 처리 (CORS 문제 해결 - 개별 요청으로 변경)
+        // 일괄 처리
         async function processAllMatches() {
             const pendingMatches = matchingResults.filter(r => 
                 r.status === 'matched' && r.selectedMatch && !r.processed
@@ -2987,73 +2135,50 @@
                 return;
             }
             
-            if (!confirm(`${pendingMatches.length}건의 납부를 일괄 처리하시겠습니까?\n\n⚠️ 이 작업은 실제로 구글 시트에 데이터를 쓰게 됩니다.`)) {
+            if (!confirm(`${pendingMatches.length}건의 납부를 일괄 처리하시겠습니까?`)) {
                 return;
             }
             
-            showProgress(0, '일괄 처리를 시작합니다...');
+            showProgress(0, '일괄 처리 시작...');
             
             let processed = 0;
             let failed = 0;
-            const errors = [];
             
-            try {
-                // 개별 요청으로 처리 (CORS 문제 해결)
-                for (let i = 0; i < pendingMatches.length; i++) {
-                    const matchResult = pendingMatches[i];
-                    const index = matchingResults.indexOf(matchResult);
+            for (let i = 0; i < pendingMatches.length; i++) {
+                const matchResult = pendingMatches[i];
+                const index = matchingResults.indexOf(matchResult);
+                
+                try {
+                    await updatePaymentStatus(matchResult.selectedMatch.fee, matchResult.transaction);
                     
-                    try {
-                        await updatePaymentStatus(matchResult.selectedMatch.fee, matchResult.transaction);
-                        
-                        matchResult.processed = true;
-                        processed++;
-                        
-                        // UI 업데이트
-                        const matchItem = document.getElementById(`match-item-${index}`);
-                        if (matchItem) {
-                            matchItem.className = 'match-item confirmed';
-                            const actions = matchItem.querySelector('.match-actions');
-                            actions.innerHTML = '<span style="color: #9b59b6; font-weight: 600;">✨ 처리완료</span>';
-                        }
-                        
-                        // 각 요청 사이에 약간의 지연 (API 제한 방지)
-                        await new Promise(resolve => setTimeout(resolve, 200));
-                        
-                    } catch (error) {
-                        failed++;
-                        errors.push(`${matchResult.selectedMatch.customer.name}: ${error.message}`);
-                        console.error('개별 처리 실패:', error);
+                    matchResult.processed = true;
+                    processed++;
+                    
+                    const matchItem = document.getElementById(`match-item-${index}`);
+                    if (matchItem) {
+                        matchItem.className = 'match-item confirmed';
+                        const actions = matchItem.querySelector('.match-actions');
+                        actions.innerHTML = '<span style="color: #9b59b6; font-weight: 600;">✨ 처리완료</span>';
                     }
                     
-                    const progress = Math.round(((i + 1) / pendingMatches.length) * 100);
-                    showProgress(progress, `${processed}/${pendingMatches.length}건 처리 완료... (실패: ${failed}건)`);
+                    await sleep(200); // API 제한 방지
+                    
+                } catch (error) {
+                    failed++;
+                    console.error('개별 처리 실패:', error);
                 }
                 
-                hideProgress();
-                updateCounters();
-                
-                let message = `🎉 일괄 처리 완료!\n성공: ${processed}건`;
-                if (failed > 0) {
-                    message += `\n실패: ${failed}건`;
-                    console.warn('실패한 항목들:', errors);
-                }
-                message += '\n\n구글 시트가 업데이트되었습니다.';
-                
-                showToast(message);
-                
-                // 수동 관리 탭 데이터 새로고침
-                await loadFees();
-                
-                if (failed > 0) {
-                    alert(`처리 완료!\n성공: ${processed}건\n실패: ${failed}건\n\n실패 내역은 콘솔을 확인해주세요.`);
-                }
-                
-            } catch (error) {
-                hideProgress();
-                console.error('일괄 처리 실패:', error);
-                alert('일괄 처리 중 오류가 발생했습니다: ' + error.message);
+                const progress = Math.round(((i + 1) / pendingMatches.length) * 100);
+                showProgress(progress, `${processed}/${pendingMatches.length}건 처리 완료...`);
             }
+            
+            hideProgress();
+            updateCounters();
+            
+            showToast(`일괄 처리 완료! 성공: ${processed}건, 실패: ${failed}건`);
+            
+            // 수동 관리 탭 데이터 새로고침
+            await loadFees();
         }
         
         // 카운터 업데이트
@@ -3092,7 +2217,7 @@
                     const confidenceEmoji = getConfidenceEmoji(match.confidence);
                     
                     html += `
-                        <div style="margin-bottom: 15px; padding: 20px; border: 2px solid ${i === 0 ? '#667eea' : '#e1e8ed'}; border-radius: 10px; transition: all 0.3s ease;">
+                        <div style="margin-bottom: 15px; padding: 20px; border: 2px solid ${i === 0 ? '#667eea' : '#e1e8ed'}; border-radius: 10px;">
                             <label style="cursor: pointer; display: flex; align-items: flex-start; gap: 15px;">
                                 <input type="radio" name="manualMatch" value="${i}" ${i === 0 ? 'checked' : ''} 
                                        style="margin-top: 5px;">
@@ -3103,7 +2228,7 @@
                                     <div style="color: #666; font-size: 14px; margin-bottom: 8px;">
                                         📞 ${match.customer.phone} | 💰 청구액: ${formatCurrency(match.fee.total_fee)}
                                     </div>
-                                    <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+                                    <div style="display: flex; align-items: center; gap: 15px;">
                                         <span style="color: #27ae60; font-weight: 600;">
                                             ${confidenceEmoji} ${getConfidenceText(match.confidence)} (${match.score}점)
                                         </span>
@@ -3142,7 +2267,6 @@
         function skipMatch(index) {
             const matchItem = document.getElementById(`match-item-${index}`);
             matchItem.style.opacity = '0.6';
-            matchItem.style.transform = 'scale(0.98)';
             
             const actions = matchItem.querySelector('.match-actions');
             actions.innerHTML = '<span style="color: #95a5a6; font-weight: 600;">⏭️ 건너뜀</span>';
@@ -3381,7 +2505,11 @@
             setTimeout(() => {
                 toast.style.opacity = '0';
                 toast.style.transform = 'translateX(100%)';
-                setTimeout(() => document.body.removeChild(toast), 300);
+                setTimeout(() => {
+                    if (document.body.contains(toast)) {
+                        document.body.removeChild(toast);
+                    }
+                }, 300);
             }, 3000);
         }
         
@@ -3433,6 +2561,11 @@
         // 모달 관련 함수들
         function openModal(type) {
             alert(`${type} 기능은 추후 구현 예정입니다.`);
+        }
+        
+        // 유틸리티 함수
+        function sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         }
     </script>
 </body>

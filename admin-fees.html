@@ -931,7 +931,7 @@
             }
         }
         
-        // 구글 시트 연결 확인
+        // 구글 시트 연결 확인 (CORS 문제 해결)
         async function checkConnection() {
             try {
                 // 1. 읽기 API 테스트
@@ -943,29 +943,33 @@
                     throw new Error('읽기 API 응답 오류');
                 }
                 
-                // 2. Apps Script 쓰기 API 테스트
-                const writeResponse = await fetch(SHEET_CONFIG.APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'testConnection'
-                    })
-                });
+                // 2. Apps Script 쓰기 API 테스트 (GET 요청으로 변경)
+                const writeResponse = await fetch(
+                    `${SHEET_CONFIG.APPS_SCRIPT_URL}?action=testConnection&timestamp=${Date.now()}`,
+                    {
+                        method: 'GET',
+                        mode: 'cors'
+                    }
+                );
                 
                 if (writeResponse.ok) {
-                    isConnected = true;
-                    updateConnectionStatus(true, '읽기/쓰기 모두 연결됨');
+                    const result = await writeResponse.json();
+                    if (result.success) {
+                        isConnected = true;
+                        updateConnectionStatus(true, '읽기/쓰기 모두 연결됨');
+                    } else {
+                        isConnected = false;
+                        updateConnectionStatus(false, '쓰기 권한 문제: ' + result.error);
+                    }
                 } else {
                     isConnected = false;
-                    updateConnectionStatus(false, '쓰기 권한 없음 - 읽기만 가능');
+                    updateConnectionStatus(false, '쓰기 권한 없음 - Apps Script 배포 확인 필요');
                 }
                 
             } catch (error) {
                 console.error('연결 확인 실패:', error);
                 isConnected = false;
-                updateConnectionStatus(false, '연결 실패 - API 키 확인 필요');
+                updateConnectionStatus(false, '연결 실패: ' + error.message);
             }
         }
         
@@ -981,7 +985,7 @@
             }
         }
         
-        // 쓰기 테스트 함수
+        // 쓰기 테스트 함수 (CORS 문제 해결)
         async function testPaymentUpdate() {
             if (!isConnected) {
                 alert('먼저 연결 테스트를 해주세요.');
@@ -995,20 +999,21 @@
             try {
                 showProgress(0, '쓰기 테스트 중...');
                 
-                const testData = {
+                // GET 요청으로 변경 (CORS 문제 해결)
+                const testParams = new URLSearchParams({
                     action: 'logTest',
                     timestamp: new Date().toISOString(),
                     message: '시스템 쓰기 테스트',
                     user: '더원클린앤케어'
-                };
-                
-                const response = await fetch(SHEET_CONFIG.APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(testData)
                 });
+                
+                const response = await fetch(
+                    `${SHEET_CONFIG.APPS_SCRIPT_URL}?${testParams.toString()}`,
+                    {
+                        method: 'GET',
+                        mode: 'cors'
+                    }
+                );
                 
                 showProgress(50, '응답 확인 중...');
                 
@@ -1738,7 +1743,7 @@
             }
         }
         
-        // 실제 납부 업데이트
+        // 실제 납부 업데이트 (CORS 문제 해결)
         async function updatePaymentStatus(fee, transaction) {
             try {
                 console.log('실제 납부 처리 시작:', {
@@ -1749,20 +1754,23 @@
                     description: transaction.description
                 });
                 
-                const response = await fetch(SHEET_CONFIG.APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'updatePayment',
-                        fee_id: fee.fee_id,
-                        customer_id: fee.customer_id,
-                        payment_amount: transaction.amount,
-                        payment_date: transaction.date,
-                        description: transaction.description
-                    })
+                // GET 요청으로 변경 (CORS 문제 해결)
+                const params = new URLSearchParams({
+                    action: 'updatePayment',
+                    fee_id: fee.fee_id,
+                    customer_id: fee.customer_id,
+                    payment_amount: transaction.amount,
+                    payment_date: transaction.date,
+                    description: transaction.description
                 });
+                
+                const response = await fetch(
+                    `${SHEET_CONFIG.APPS_SCRIPT_URL}?${params.toString()}`,
+                    {
+                        method: 'GET',
+                        mode: 'cors'
+                    }
+                );
                 
                 if (!response.ok) {
                     throw new Error(`HTTP 오류: ${response.status}`);
@@ -1783,7 +1791,7 @@
             }
         }
         
-        // 일괄 처리
+        // 일괄 처리 (CORS 문제 해결 - 개별 요청으로 변경)
         async function processAllMatches() {
             const pendingMatches = matchingResults.filter(r => 
                 r.status === 'matched' && r.selectedMatch && !r.processed
@@ -1800,66 +1808,60 @@
             
             showProgress(0, '일괄 처리를 시작합니다...');
             
-            const paymentsToProcess = pendingMatches.map(result => ({
-                fee_id: result.selectedMatch.fee.fee_id,
-                customer_id: result.selectedMatch.fee.customer_id,
-                payment_amount: result.transaction.amount,
-                payment_date: result.transaction.date,
-                description: result.transaction.description
-            }));
+            let processed = 0;
+            let failed = 0;
+            const errors = [];
             
             try {
-                const response = await fetch(SHEET_CONFIG.APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'batchUpdate',
-                        payments: paymentsToProcess
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP 오류: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                
-                if (!result.success) {
-                    throw new Error(result.error || '일괄 처리 실패');
-                }
-                
-                let processed = 0;
+                // 개별 요청으로 처리 (CORS 문제 해결)
                 for (let i = 0; i < pendingMatches.length; i++) {
                     const matchResult = pendingMatches[i];
                     const index = matchingResults.indexOf(matchResult);
                     
-                    matchResult.processed = true;
-                    processed++;
-                    
-                    const matchItem = document.getElementById(`match-item-${index}`);
-                    if (matchItem) {
-                        matchItem.className = 'match-item confirmed';
-                        const actions = matchItem.querySelector('.match-actions');
-                        actions.innerHTML = '<span style="color: #9b59b6; font-weight: 600;">✨ 처리완료</span>';
+                    try {
+                        await updatePaymentStatus(matchResult.selectedMatch.fee, matchResult.transaction);
+                        
+                        matchResult.processed = true;
+                        processed++;
+                        
+                        // UI 업데이트
+                        const matchItem = document.getElementById(`match-item-${index}`);
+                        if (matchItem) {
+                            matchItem.className = 'match-item confirmed';
+                            const actions = matchItem.querySelector('.match-actions');
+                            actions.innerHTML = '<span style="color: #9b59b6; font-weight: 600;">✨ 처리완료</span>';
+                        }
+                        
+                        // 각 요청 사이에 약간의 지연 (API 제한 방지)
+                        await new Promise(resolve => setTimeout(resolve, 200));
+                        
+                    } catch (error) {
+                        failed++;
+                        errors.push(`${matchResult.selectedMatch.customer.name}: ${error.message}`);
+                        console.error('개별 처리 실패:', error);
                     }
                     
                     const progress = Math.round(((i + 1) / pendingMatches.length) * 100);
-                    showProgress(progress, `${processed}/${pendingMatches.length}건 처리 완료...`);
+                    showProgress(progress, `${processed}/${pendingMatches.length}건 처리 완료... (실패: ${failed}건)`);
                 }
                 
                 hideProgress();
                 updateCounters();
                 
-                showToast(`🎉 ${processed}건이 성공적으로 처리되었습니다!\n구글 시트가 업데이트되었습니다.`);
+                let message = `🎉 일괄 처리 완료!\n성공: ${processed}건`;
+                if (failed > 0) {
+                    message += `\n실패: ${failed}건`;
+                    console.warn('실패한 항목들:', errors);
+                }
+                message += '\n\n구글 시트가 업데이트되었습니다.';
+                
+                showToast(message);
                 
                 // 수동 관리 탭 데이터 새로고침
                 await loadFees();
                 
-                if (result.errors && result.errors.length > 0) {
-                    console.warn('일부 항목 처리 실패:', result.errors);
-                    alert(`처리 완료!\n성공: ${result.processed}건\n실패: ${result.errors.length}건\n\n실패 내역은 콘솔을 확인해주세요.`);
+                if (failed > 0) {
+                    alert(`처리 완료!\n성공: ${processed}건\n실패: ${failed}건\n\n실패 내역은 콘솔을 확인해주세요.`);
                 }
                 
             } catch (error) {

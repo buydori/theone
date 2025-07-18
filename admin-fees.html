@@ -714,13 +714,19 @@
                     <p style="margin-top: 10px; color: #666; font-size: 14px;">
                         시트 주소: https://docs.google.com/spreadsheets/d/1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg
                     </p>
+                    <p style="margin-top: 5px; color: #666; font-size: 12px;">
+                        Apps Script URL: <span id="appsScriptUrl" style="word-break: break-all;"></span>
+                    </p>
                 </div>
-                <div style="display: flex; gap: 10px;">
+                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                     <button class="btn btn-primary" onclick="checkConnection()" style="padding: 8px 16px; font-size: 14px;">
                         🔄 연결 테스트
                     </button>
                     <button class="btn btn-success" onclick="testPaymentUpdate()" style="padding: 8px 16px; font-size: 14px;">
                         🧪 쓰기 테스트
+                    </button>
+                    <button class="btn btn-warning" onclick="debugConnection()" style="padding: 8px 16px; font-size: 14px;">
+                        🔍 연결 진단
                     </button>
                 </div>
             </div>
@@ -924,6 +930,9 @@
         
         // 페이지 로드 시 실행
         document.addEventListener('DOMContentLoaded', async function() {
+            // Apps Script URL 표시
+            document.getElementById('appsScriptUrl').textContent = SHEET_CONFIG.APPS_SCRIPT_URL;
+            
             await checkConnection();
             if (isConnected) {
                 await loadBuildings();
@@ -949,8 +958,50 @@
             }
         }
         
-        // 구글 시트 연결 확인 (CORS 문제 해결)
-        async function checkConnection() {
+        // JSONP 요청 함수 (CORS 문제 완전 해결)
+        function makeJSONPRequest(url, params = {}) {
+            return new Promise((resolve, reject) => {
+                // 콜백 함수명 생성
+                const callbackName = 'jsonp_callback_' + Date.now() + '_' + Math.floor(Math.random() * 10000);
+                
+                // 글로벌 콜백 함수 생성
+                window[callbackName] = function(data) {
+                    // 정리
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                    resolve(data);
+                };
+                
+                // 파라미터에 콜백 추가
+                params.callback = callbackName;
+                
+                // URL 파라미터 생성
+                const queryString = Object.keys(params)
+                    .map(key => encodeURIComponent(key) + '=' + encodeURIComponent(params[key]))
+                    .join('&');
+                
+                // script 태그 생성
+                const script = document.createElement('script');
+                script.src = url + '?' + queryString;
+                script.onerror = function() {
+                    document.head.removeChild(script);
+                    delete window[callbackName];
+                    reject(new Error('JSONP 요청 실패'));
+                };
+                
+                // script 태그 추가 (요청 시작)
+                document.head.appendChild(script);
+                
+                // 타임아웃 설정
+                setTimeout(() => {
+                    if (window[callbackName]) {
+                        document.head.removeChild(script);
+                        delete window[callbackName];
+                        reject(new Error('JSONP 요청 타임아웃'));
+                    }
+                }, 10000); // 10초 타임아웃
+            });
+        }
             try {
                 // 1. 읽기 API 테스트
                 const readResponse = await fetch(
@@ -991,8 +1042,88 @@
             }
         }
         
-        // 연결 상태 업데이트
-        function updateConnectionStatus(connected, message = '') {
+        // 연결 진단 함수 (JSONP 방식)
+        async function debugConnection() {
+            console.log('=== 연결 진단 시작 ===');
+            
+            const results = [];
+            
+            try {
+                // 1. 기본 설정 확인
+                results.push('📋 기본 설정:');
+                results.push(`- API Key: ${SHEET_CONFIG.API_KEY.substring(0, 20)}...`);
+                results.push(`- Sheet ID: ${SHEET_CONFIG.SHEET_ID}`);
+                results.push(`- Apps Script URL: ${SHEET_CONFIG.APPS_SCRIPT_URL}`);
+                results.push('');
+                
+                // 2. 읽기 API 테스트
+                results.push('📖 읽기 API 테스트:');
+                try {
+                    const readResponse = await fetch(
+                        `${SHEET_CONFIG.BASE_URL}/${SHEET_CONFIG.SHEET_ID}?key=${SHEET_CONFIG.API_KEY}`
+                    );
+                    
+                    if (readResponse.ok) {
+                        results.push('✅ 읽기 API 연결 성공');
+                        const data = await readResponse.json();
+                        results.push(`- 시트 제목: ${data.properties?.title || '확인불가'}`);
+                    } else {
+                        results.push(`❌ 읽기 API 실패: ${readResponse.status} ${readResponse.statusText}`);
+                    }
+                } catch (error) {
+                    results.push(`❌ 읽기 API 오류: ${error.message}`);
+                }
+                results.push('');
+                
+                // 3. Apps Script JSONP 테스트
+                results.push('🔧 Apps Script JSONP 테스트:');
+                try {
+                    results.push('- JSONP 요청 시작...');
+                    
+                    const appsResult = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
+                        action: 'testConnection',
+                        timestamp: Date.now()
+                    });
+                    
+                    results.push('✅ Apps Script JSONP 연결 성공');
+                    results.push(`- 메시지: ${appsResult.message || '없음'}`);
+                    results.push(`- 시트명: ${appsResult.sheet_name || '없음'}`);
+                    results.push(`- 행 수: ${appsResult.rows || '없음'}`);
+                    results.push(`- 사용가능한 시트: ${appsResult.available_sheets?.join(', ') || '없음'}`);
+                    results.push(`- CORS 수정됨: ${appsResult.cors_fixed ? '✅' : '❌'}`);
+                    
+                } catch (error) {
+                    results.push(`❌ Apps Script JSONP 오류: ${error.message}`);
+                    results.push('- JSONP 방식 실패. Apps Script 재배포 필요');
+                }
+                results.push('');
+                
+                // 4. 브라우저 정보
+                results.push('🌐 브라우저 정보:');
+                results.push(`- User Agent: ${navigator.userAgent}`);
+                results.push(`- 현재 도메인: ${window.location.origin}`);
+                results.push('');
+                
+                // 5. 권장 해결책
+                results.push('🔧 권장 해결책:');
+                results.push('1. Google Apps Script에서 새 코드로 교체');
+                results.push('2. 새로 배포 (모든 사용자 권한)');
+                results.push('3. Apps Script에서 manualTest() 함수 실행해보기');
+                results.push('4. 시트 권한 확인 (편집 권한 필요)');
+                results.push('5. JSONP 방식으로 CORS 문제 완전 해결');
+                
+            } catch (error) {
+                results.push(`❌ 진단 중 오류: ${error.message}`);
+            }
+            
+            // 결과 표시
+            const reportText = results.join('\n');
+            console.log(reportText);
+            
+            // 모달로 결과 표시
+            alert('연결 진단 완료!\n\n결과는 브라우저 콘솔(F12)에서 확인할 수 있습니다.\n\n' + 
+                  '주요 결과:\n' + results.slice(0, 10).join('\n'));
+        }
             const statusElement = document.getElementById('connectionStatus');
             if (connected) {
                 statusElement.className = 'status-indicator status-connected';
@@ -1003,7 +1134,7 @@
             }
         }
         
-        // 쓰기 테스트 함수 (CORS 문제 해결)
+        // 쓰기 테스트 함수 (JSONP 방식)
         async function testPaymentUpdate() {
             if (!isConnected) {
                 alert('먼저 연결 테스트를 해주세요.');
@@ -1017,29 +1148,14 @@
             try {
                 showProgress(0, '쓰기 테스트 중...');
                 
-                // GET 요청으로 변경 (CORS 문제 해결)
-                const testParams = new URLSearchParams({
+                // JSONP 요청
+                const result = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
                     action: 'logTest',
                     timestamp: new Date().toISOString(),
                     message: '시스템 쓰기 테스트',
                     user: '더원클린앤케어'
                 });
                 
-                const response = await fetch(
-                    `${SHEET_CONFIG.APPS_SCRIPT_URL}?${testParams.toString()}`,
-                    {
-                        method: 'GET',
-                        mode: 'cors'
-                    }
-                );
-                
-                showProgress(50, '응답 확인 중...');
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP 오류: ${response.status}`);
-                }
-                
-                const result = await response.json();
                 showProgress(100, '테스트 완료!');
                 
                 setTimeout(() => {
@@ -2283,7 +2399,7 @@
             }
         }
         
-        // 실제 납부 업데이트 (CORS 문제 해결)
+        // 실제 납부 업데이트 (JSONP 방식)
         async function updatePaymentStatus(fee, transaction) {
             try {
                 console.log('실제 납부 처리 시작:', {
@@ -2294,8 +2410,8 @@
                     description: transaction.description
                 });
                 
-                // GET 요청으로 변경 (CORS 문제 해결)
-                const params = new URLSearchParams({
+                // JSONP 요청
+                const result = await makeJSONPRequest(SHEET_CONFIG.APPS_SCRIPT_URL, {
                     action: 'updatePayment',
                     fee_id: fee.fee_id,
                     customer_id: fee.customer_id,
@@ -2303,20 +2419,6 @@
                     payment_date: transaction.date,
                     description: transaction.description
                 });
-                
-                const response = await fetch(
-                    `${SHEET_CONFIG.APPS_SCRIPT_URL}?${params.toString()}`,
-                    {
-                        method: 'GET',
-                        mode: 'cors'
-                    }
-                );
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP 오류: ${response.status}`);
-                }
-                
-                const result = await response.json();
                 
                 if (!result.success) {
                     throw new Error(result.error || '알 수 없는 오류');

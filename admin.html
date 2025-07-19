@@ -606,7 +606,7 @@
             }
         }
 
-        // 최근 납부 현황 업데이트
+        // 최근 납부 현황 업데이트 (수정됨)
         function updateRecentPayments() {
             const recentPaymentsContainer = document.querySelector('[data-section="recent-payments"]');
             
@@ -617,8 +617,10 @@
             
             // 최근 10건의 납부 내역 가져오기
             const recentPayments = dashboardData.paymentHistory
-                .sort((a, b) => new Date(b.created_date) - new Date(a.created_date))
+                .sort((a, b) => new Date(b.created_date || b['created_date'] || 0) - new Date(a.created_date || a['created_date'] || 0))
                 .slice(0, 10);
+            
+            console.log('최근 납부 데이터:', recentPayments); // 디버깅용
             
             if (recentPayments.length === 0) {
                 recentPaymentsContainer.innerHTML = `
@@ -632,13 +634,51 @@
             
             let html = '<h3>📋 최근 납부 현황</h3><div class="payment-list">';
             
-            recentPayments.forEach(payment => {
-                const customer = dashboardData.customers.find(c => c.customer_id === payment.customer_id);
-                const customerName = customer ? customer.name : '알 수 없음';
-                const buildingInfo = customer ? `${customer.building_name} ${customer.room_number}` : '';
+            recentPayments.forEach((payment, index) => {
+                // 다양한 방식으로 데이터 접근 시도
+                const customerId = payment.customer_id || payment['customer_id'] || '';
+                const customer = dashboardData.customers.find(c => 
+                    c.customer_id === customerId || c['customer_id'] === customerId
+                );
                 
-                const paymentDate = payment.payment_date || payment.created_date?.split('T')[0] || '';
-                const amount = formatCurrency(parseInt(payment.payment_amount) || 0);
+                const customerName = customer ? (customer.name || customer['name']) : '알 수 없음';
+                const buildingName = customer ? (customer.building_name || customer['building_name']) : '';
+                const roomNumber = customer ? (customer.room_number || customer['room_number']) : '';
+                const buildingInfo = buildingName && roomNumber ? `${buildingName} ${roomNumber}` : '';
+                
+                // 날짜 - 다양한 필드에서 시도
+                const paymentDate = payment.payment_date || payment['payment_date'] || 
+                                  (payment.created_date || payment['created_date'] || '').split('T')[0] || '';
+                
+                // 금액 - E열(인덱스 4) 또는 필드명으로 접근
+                let amount = 0;
+                if (Array.isArray(payment)) {
+                    // 배열 형태인 경우 E열(인덱스 4)에서 직접 가져오기
+                    amount = parseInt(payment[4]) || 0;
+                } else {
+                    // 객체 형태인 경우 다양한 필드명 시도
+                    amount = parseInt(payment.payment_amount || payment['payment_amount'] || 
+                            payment.amount || payment['amount'] || 0);
+                }
+                
+                const formattedAmount = formatCurrency(amount);
+                
+                // 결제 방법
+                const paymentMethod = payment.payment_method || payment['payment_method'] || '자동매칭';
+                
+                // 디버깅 로그 (처음 3개만)
+                if (index < 3) {
+                    console.log(`납부 ${index + 1}:`, {
+                        customerId,
+                        customerName,
+                        buildingInfo,
+                        paymentDate,
+                        amount,
+                        formattedAmount,
+                        paymentMethod,
+                        rawPayment: payment
+                    });
+                }
                 
                 html += `
                     <div class="payment-item">
@@ -652,10 +692,10 @@
                         </div>
                         <div style="text-align: right;">
                             <div style="font-weight: 700; color: #27ae60;">
-                                ${amount}
+                                ${formattedAmount}
                             </div>
                             <div style="font-size: 11px; color: #666;">
-                                ${payment.payment_method || '자동매칭'}
+                                ${paymentMethod}
                             </div>
                         </div>
                     </div>
@@ -664,6 +704,39 @@
             
             html += '</div>';
             recentPaymentsContainer.innerHTML = html;
+        }
+
+        // 시트 데이터 처리 (수정된 버전 - 원본 배열도 보존)
+        function processSheetData(data) {
+            if (!data.values || data.values.length < 2) {
+                return [];
+            }
+            
+            const headers = data.values[0];
+            const rows = data.values.slice(1);
+            
+            console.log(`데이터 처리 중 - 헤더:`, headers); // 디버깅용
+            
+            return rows.map((row, index) => {
+                const obj = {
+                    _raw: row, // 원본 배열 보존
+                    _index: index
+                };
+                
+                // 헤더 기반 객체 생성
+                headers.forEach((header, headerIndex) => {
+                    if (header) {
+                        obj[header] = row[headerIndex] || '';
+                    }
+                });
+                
+                // E열 직접 접근을 위한 추가 필드 (payment_history용)
+                if (headers.includes('payment_amount') || headers.includes('amount')) {
+                    obj._payment_amount_from_e_column = row[4] || ''; // E열 직접 접근
+                }
+                
+                return obj;
+            });
         }
 
         // 통화 포맷
@@ -684,7 +757,7 @@
             });
         }
 
-        // 수동 새로고침 함수
+        // 수동 새로고침 함수 (디버깅 강화)
         async function refreshDashboard() {
             const refreshBtn = document.querySelector('[data-action="refresh"]');
             const originalText = refreshBtn ? refreshBtn.textContent : '';
@@ -696,6 +769,20 @@
             
             try {
                 await loadDashboardData();
+                
+                // 디버깅: payment_history 데이터 구조 확인
+                console.log('=== Payment History 디버깅 ===');
+                console.log('총 납부 기록 수:', dashboardData.paymentHistory.length);
+                
+                if (dashboardData.paymentHistory.length > 0) {
+                    const sample = dashboardData.paymentHistory[0];
+                    console.log('첫 번째 납부 기록 샘플:', sample);
+                    console.log('원본 배열:', sample._raw);
+                    console.log('E열 값 (인덱스 4):', sample._raw ? sample._raw[4] : 'N/A');
+                    console.log('payment_amount 필드:', sample.payment_amount);
+                    console.log('모든 필드명:', Object.keys(sample));
+                }
+                
                 updateDashboard();
                 
                 if (refreshBtn) {

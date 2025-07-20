@@ -2371,25 +2371,62 @@
             return results;
         }
         
-        // 거래 설명에서 정보 추출 (개선됨)
+        // 거래 설명에서 정보 추출 (더욱 강화됨)
         function extractInfoFromDescription(description) {
             const info = {
                 names: [],
                 roomNumbers: [],
                 phoneNumbers: [],
+                buildingNames: [], // 건물명 별도 추가
                 originalText: description
             };
             
-            // 1. 이름+호수 붙어있는 패턴 우선 추출 (강양규206호, 김철수101호)
+            // 1. 건물명+호수 패턴 우선 추출 (운정힐스201, 동패동1978 301호)
+            const buildingRoomPatterns = [
+                // 한글+숫자+호 (운정힐스201호, 동패동1978 301호)
+                /([가-힣]+\d*)\s*(\d{1,4})호/g,
+                // 한글+숫자 (운정힐스201, 동패동1978등)
+                /([가-힣]+)(\d{2,4})(?!호)/g,
+                // 한글+영문+숫자 (예: 힐스타운A동101)
+                /([가-힣]+[A-Za-z]*)\s*([A-Za-z]*)동?\s*(\d{1,4})호?/g
+            ];
+            
+            buildingRoomPatterns.forEach(pattern => {
+                let match;
+                while ((match = pattern.exec(description)) !== null) {
+                    const buildingPart = match[1];
+                    const roomPart = match[2] || match[3];
+                    
+                    if (buildingPart && roomPart) {
+                        info.buildingNames.push(buildingPart);
+                        info.roomNumbers.push(roomPart);
+                        info.roomNumbers.push(roomPart + '호');
+                        
+                        // 건물명에서 숫자 부분 제거한 순수 건물명도 추가
+                        const pureBuildingName = buildingPart.replace(/\d+$/, '');
+                        if (pureBuildingName && pureBuildingName !== buildingPart) {
+                            info.buildingNames.push(pureBuildingName);
+                        }
+                    }
+                }
+            });
+            
+            // 2. 사람 이름+호수 패턴 (강양규206호, 김철수101호)
             const nameRoomPattern = /([가-힣]{2,4})(\d{1,4})호/g;
             let match;
             while ((match = nameRoomPattern.exec(description)) !== null) {
-                info.names.push(match[1]);     // 이름 (강양규)
-                info.roomNumbers.push(match[2]); // 호수 번호 (206)
-                info.roomNumbers.push(match[2] + '호'); // 호수 (206호)
+                const name = match[1];
+                const room = match[2];
+                
+                // 건물명이 아닌 사람 이름으로 판단되는 경우만 추가
+                if (name.length <= 4 && !info.buildingNames.includes(name)) {
+                    info.names.push(name);
+                    info.roomNumbers.push(room);
+                    info.roomNumbers.push(room + '호');
+                }
             }
             
-            // 2. 별표로 둘러싸인 이름 추출 (***김철수***, **홍길동**)
+            // 3. 별표로 둘러싸인 이름 추출 (***김철수***, **홍길동**)
             const starPatterns = [
                 /\*{2,}([가-힣]{2,4})\*{2,}/g,
                 /\*([가-힣]{2,4})\*/g
@@ -2402,64 +2439,55 @@
                 }
             });
             
-            // 3. 괄호 안의 이름 추출 (302호(전신금), (김철수))
+            // 4. 괄호 안의 이름 추출 (302호(전신금), (김철수))
             const bracketPattern = /\(([가-힣]{2,4})\)/g;
             while ((match = bracketPattern.exec(description)) !== null) {
                 info.names.push(match[1]);
             }
             
-            // 4. 호수 정보 추가 추출 (위에서 추출되지 않은 것들)
+            // 5. 호수 정보 추가 추출
             const roomPatterns = [
                 /(\d{1,4})호/g,
                 /([A-Z가-힣]\d*)동/g,
-                /(\d{1,4})-(\d{1,4})/g,  // 101-203 형태
-                /([A-Z가-힣])동\s*(\d{1,4})호/g  // A동 203호
+                /(\d{1,4})-(\d{1,4})/g,
+                /([A-Z가-힣])동\s*(\d{1,4})호/g
             ];
             
             roomPatterns.forEach(pattern => {
                 let match;
                 while ((match = pattern.exec(description)) !== null) {
                     if (pattern.source.includes('동.*호')) {
-                        // A동 203호 형태
                         info.roomNumbers.push(`${match[1]}동${match[2]}호`);
-                        info.roomNumbers.push(match[2]); // 호수만도 추가
+                        info.roomNumbers.push(match[2]);
                     } else {
                         info.roomNumbers.push(match[1]);
-                        if (match[2]) info.roomNumbers.push(match[2]); // 101-203 형태의 두 번째 숫자
+                        if (match[2]) info.roomNumbers.push(match[2]);
                     }
                 }
             });
             
-            // 5. 전화번호 뒷자리 추출 (1234, #1234)
+            // 6. 전화번호 뒷자리 추출
             const phonePattern = /#?(\d{4})/g;
             while ((match = phonePattern.exec(description)) !== null) {
                 info.phoneNumbers.push(match[1]);
             }
             
-            // 6. 단순 한글 이름 추출 (공백으로 분리된 경우) - 이미 추출된 것 제외
+            // 7. 단순 한글 이름 추출 (이미 추출된 것 제외)
             const words = description.split(/[\s,()[\]{}]+/);
             words.forEach(word => {
                 const cleanWord = word.replace(/[^\w가-힣]/g, '');
-                if (/^[가-힣]{2,4}$/.test(cleanWord) && !info.names.includes(cleanWord)) {
+                if (/^[가-힣]{2,4}$/.test(cleanWord) && 
+                    !info.names.includes(cleanWord) && 
+                    !info.buildingNames.includes(cleanWord)) {
                     info.names.push(cleanWord);
                 }
             });
-            
-            // 7. 추가 패턴: 이름+숫자 (호 없이) - 강양규206
-            const nameNumberPattern = /([가-힣]{2,4})(\d{2,4})(?!호)/g;
-            while ((match = nameNumberPattern.exec(description)) !== null) {
-                if (!info.names.includes(match[1])) {
-                    info.names.push(match[1]);     // 이름 (강양규)
-                }
-                if (!info.roomNumbers.includes(match[2])) {
-                    info.roomNumbers.push(match[2]); // 숫자 (206)
-                }
-            }
             
             // 중복 제거
             info.names = [...new Set(info.names)];
             info.roomNumbers = [...new Set(info.roomNumbers)];
             info.phoneNumbers = [...new Set(info.phoneNumbers)];
+            info.buildingNames = [...new Set(info.buildingNames)];
             
             debugLog('거래 설명 파싱 결과', {
                 original: description,
@@ -2469,7 +2497,7 @@
             return info;
         }
         
-        // 잠재적 매칭 찾기 (강화됨)
+        // 잠재적 매칭 찾기 (건물명 매칭 강화)
         async function findPotentialMatches(transaction) {
             const matches = [];
             const description = transaction.description.toLowerCase();
@@ -2503,14 +2531,55 @@
                     scoreDetails.roughAmount = 10;
                 }
                 
-                // 고객명 매칭 (강화됨) - 35점
+                // 건물명 매칭 (강화됨) - 40점
+                const customerBuilding = customer.building_name.toLowerCase();
+                let buildingMatchFound = false;
+                
+                // 1. 전체 설명에서 건물명 찾기
+                if (description.includes(customerBuilding)) {
+                    matchScore += 40;
+                    scoreDetails.buildingInDescription = 40;
+                    buildingMatchFound = true;
+                }
+                
+                // 2. 추출된 건물명들과 매칭
+                if (!buildingMatchFound) {
+                    for (const extractedBuilding of extractedInfo.buildingNames) {
+                        const extractedLower = extractedBuilding.toLowerCase();
+                        
+                        // 정확 매칭
+                        if (extractedLower === customerBuilding) {
+                            matchScore += 40;
+                            scoreDetails.exactBuildingMatch = 40;
+                            buildingMatchFound = true;
+                            break;
+                        }
+                        // 부분 매칭 (건물명이 포함되어 있는 경우)
+                        else if (extractedLower.includes(customerBuilding) || 
+                                customerBuilding.includes(extractedLower)) {
+                            matchScore += 30;
+                            scoreDetails.partialBuildingMatch = 30;
+                            buildingMatchFound = true;
+                            break;
+                        }
+                        // 유사도 매칭 (80% 이상 유사)
+                        else if (calculateSimilarity(extractedLower, customerBuilding) > 0.8) {
+                            matchScore += 25;
+                            scoreDetails.similarBuildingMatch = 25;
+                            buildingMatchFound = true;
+                            break;
+                        }
+                    }
+                }
+                
+                // 고객명 매칭 (25점) - 건물명 매칭이 더 중요하므로 점수 조정
                 const customerName = customer.name.toLowerCase();
                 let nameMatchFound = false;
                 
                 // 1. 전체 설명에서 이름 찾기
                 if (description.includes(customerName)) {
-                    matchScore += 35;
-                    scoreDetails.fullNameInDescription = 35;
+                    matchScore += 25;
+                    scoreDetails.fullNameInDescription = 25;
                     nameMatchFound = true;
                 }
                 
@@ -2518,85 +2587,77 @@
                 if (!nameMatchFound) {
                     for (const extractedName of extractedInfo.names) {
                         if (extractedName.toLowerCase() === customerName) {
-                            matchScore += 35;
-                            scoreDetails.extractedNameMatch = 35;
+                            matchScore += 25;
+                            scoreDetails.extractedNameMatch = 25;
                             nameMatchFound = true;
                             break;
                         }
-                        // 부분 매칭 (이름이 포함되어 있는 경우)
+                        // 부분 매칭
                         if (extractedName.toLowerCase().includes(customerName) || 
                             customerName.includes(extractedName.toLowerCase())) {
-                            matchScore += 25;
-                            scoreDetails.partialNameMatch = 25;
+                            matchScore += 15;
+                            scoreDetails.partialNameMatch = 15;
                             nameMatchFound = true;
                             break;
                         }
                     }
                 }
                 
-                // 호수 매칭 (강화됨) - 15점
+                // 호수 매칭 (20점)
                 const customerRoom = customer.room_number;
                 if (customerRoom) {
                     const roomStr = customerRoom.toLowerCase();
                     
                     // 1. 전체 설명에서 호수 찾기
                     if (description.includes(roomStr)) {
-                        matchScore += 15;
-                        scoreDetails.roomInDescription = 15;
+                        matchScore += 20;
+                        scoreDetails.roomInDescription = 20;
                     } else {
                         // 2. 추출된 호수들과 매칭
                         for (const extractedRoom of extractedInfo.roomNumbers) {
                             if (extractedRoom === customerRoom || 
                                 extractedRoom === customerRoom.replace(/[^\d]/g, '') ||
                                 roomStr.includes(extractedRoom)) {
-                                matchScore += 15;
-                                scoreDetails.extractedRoomMatch = 15;
+                                matchScore += 20;
+                                scoreDetails.extractedRoomMatch = 20;
                                 break;
                             }
                         }
                     }
                 }
                 
-                // 전화번호 뒷자리 매칭 (강화됨) - 20점
+                // 전화번호 뒷자리 매칭 (15점)
                 if (customer.phone_last4) {
                     const last4 = customer.phone_last4;
                     
-                    // 1. 전체 설명에서 찾기
                     if (description.includes(last4)) {
-                        matchScore += 20;
-                        scoreDetails.phoneLastFour = 20;
+                        matchScore += 15;
+                        scoreDetails.phoneLastFour = 15;
                     } else {
-                        // 2. 추출된 전화번호들과 매칭
                         for (const extractedPhone of extractedInfo.phoneNumbers) {
                             if (extractedPhone === last4 || 
                                 extractedPhone.endsWith(last4) ||
                                 last4.endsWith(extractedPhone)) {
-                                matchScore += 20;
-                                scoreDetails.extractedPhoneMatch = 20;
+                                matchScore += 15;
+                                scoreDetails.extractedPhoneMatch = 15;
                                 break;
                             }
                         }
                     }
                 }
                 
-                // 건물명 매칭 - 10점
-                if (customer.building_name) {
-                    const buildingName = customer.building_name.toLowerCase();
-                    if (description.includes(buildingName)) {
-                        matchScore += 10;
-                        scoreDetails.buildingName = 10;
-                    }
-                }
-                
-                // 년월 매칭 - 5점
+                // 년월 매칭 (5점)
                 const transactionMonth = transaction.date.substring(0, 7);
                 if (fee.year_month === transactionMonth) {
                     matchScore += 5;
                     scoreDetails.sameMonth = 5;
                 }
                 
-                // 매칭 임계값을 낮춤 (더 많은 후보 제시)
-                if (matchScore >= 20) {
+                // 매칭 임계값 (건물명이나 이름+호수 조합이 있으면 더 낮은 점수도 허용)
+                const hasStrongMatch = buildingMatchFound || (nameMatchFound && scoreDetails.extractedRoomMatch);
+                const threshold = hasStrongMatch ? 15 : 25;
+                
+                if (matchScore >= threshold) {
                     const confidence = getConfidenceLevel(matchScore);
                     
                     matches.push({
@@ -2606,15 +2667,60 @@
                         confidence,
                         scoreDetails,
                         amountDiff,
-                        extractedInfo: extractedInfo  // 디버깅용
+                        extractedInfo: extractedInfo,
+                        hasStrongMatch: hasStrongMatch
                     });
                 }
             }
             
             return matches.sort((a, b) => {
+                // 강한 매칭이 있는 것을 우선
+                if (a.hasStrongMatch !== b.hasStrongMatch) {
+                    return b.hasStrongMatch - a.hasStrongMatch;
+                }
+                // 점수가 같으면 금액 차이로 정렬
                 if (b.score !== a.score) return b.score - a.score;
                 return a.amountDiff - b.amountDiff;
             });
+        }
+        
+        // 문자열 유사도 계산 (간단한 버전)
+        function calculateSimilarity(str1, str2) {
+            if (!str1 || !str2) return 0;
+            
+            const s1 = str1.toLowerCase().trim();
+            const s2 = str2.toLowerCase().trim();
+            
+            if (s1 === s2) return 1;
+            
+            const longer = s1.length > s2.length ? s1 : s2;
+            const shorter = s1.length > s2.length ? s2 : s1;
+            
+            if (longer.length === 0) return 1;
+            
+            const editDistance = getEditDistance(longer, shorter);
+            return (longer.length - editDistance) / longer.length;
+        }
+        
+        // 편집 거리 계산 (레벤시타인 거리)
+        function getEditDistance(str1, str2) {
+            const matrix = Array(str2.length + 1).fill().map(() => Array(str1.length + 1).fill(0));
+            
+            for (let i = 0; i <= str1.length; i++) matrix[0][i] = i;
+            for (let j = 0; j <= str2.length; j++) matrix[j][0] = j;
+            
+            for (let j = 1; j <= str2.length; j++) {
+                for (let i = 1; i <= str1.length; i++) {
+                    const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+                    matrix[j][i] = Math.min(
+                        matrix[j - 1][i] + 1,
+                        matrix[j][i - 1] + 1,
+                        matrix[j - 1][i - 1] + cost
+                    );
+                }
+            }
+            
+            return matrix[str2.length][str1.length];
         }
         
         // 신뢰도 레벨 계산 (조정됨)
@@ -2626,7 +2732,7 @@
             return 'very-low';                     // 20점 미만: 매우 낮음
         }
         
-        // 매칭 결과 표시 (간단 버전)
+        // 매칭 결과 표시 (건물명 정보 포함)
         function displayMatchingResults() {
             const matchingResultsContainer = document.getElementById('matchingResults');
             const matchingContent = document.getElementById('matchingContent');
@@ -2677,6 +2783,11 @@
                     else if (scoreDetails.closeAmount) reasons.push('💰유사한 금액');
                     else if (scoreDetails.nearAmount) reasons.push('💰근접한 금액');
                     
+                    if (scoreDetails.buildingInDescription) reasons.push('🏢건물명 정확 매칭');
+                    else if (scoreDetails.exactBuildingMatch) reasons.push('🏢추출된 건물명 정확 매칭');
+                    else if (scoreDetails.partialBuildingMatch) reasons.push('🏢건물명 부분 매칭');
+                    else if (scoreDetails.similarBuildingMatch) reasons.push('🏢건물명 유사 매칭');
+                    
                     if (scoreDetails.fullNameInDescription) reasons.push('👤이름 정확 매칭');
                     else if (scoreDetails.extractedNameMatch) reasons.push('👤추출된 이름 매칭');
                     else if (scoreDetails.partialNameMatch) reasons.push('👤부분 이름 매칭');
@@ -2687,7 +2798,6 @@
                     if (scoreDetails.phoneLastFour) reasons.push('📞전화번호 매칭');
                     else if (scoreDetails.extractedPhoneMatch) reasons.push('📞추출된 번호 매칭');
                     
-                    if (scoreDetails.buildingName) reasons.push('🏢건물명 매칭');
                     if (scoreDetails.sameMonth) reasons.push('📅동일 월');
                     
                     return reasons.length > 0 ? `<br><small style="color: #27ae60;">${reasons.join(', ')}</small>` : '';
@@ -2696,12 +2806,14 @@
                 const confidenceEmoji = selectedMatch ? getSimpleConfidenceEmoji(selectedMatch.confidence) : '';
                 const statusClass = processed ? 'confirmed' : status;
                 
-                // 추출된 정보 표시
+                // 추출된 정보 표시 (건물명 추가)
                 let extractedInfoHtml = '';
-                if (extractedInfo.names.length > 0 || extractedInfo.roomNumbers.length > 0 || extractedInfo.phoneNumbers.length > 0) {
+                if (extractedInfo.names.length > 0 || extractedInfo.roomNumbers.length > 0 || 
+                    extractedInfo.phoneNumbers.length > 0 || extractedInfo.buildingNames.length > 0) {
                     extractedInfoHtml = `
                         <div style="font-size: 12px; color: #666; margin: 5px 0; padding: 8px; background: #f8f9fa; border-radius: 5px;">
                             🔍 추출된 정보: 
+                            ${extractedInfo.buildingNames.length > 0 ? `🏢건물: ${extractedInfo.buildingNames.join(', ')} ` : ''}
                             ${extractedInfo.names.length > 0 ? `👤이름: ${extractedInfo.names.join(', ')} ` : ''}
                             ${extractedInfo.roomNumbers.length > 0 ? `🏠호수: ${extractedInfo.roomNumbers.join(', ')} ` : ''}
                             ${extractedInfo.phoneNumbers.length > 0 ? `📞번호: ${extractedInfo.phoneNumbers.join(', ')}` : ''}
@@ -2731,6 +2843,8 @@
                                 ${matches.length > 0 ? `
                                     <div style="font-size: 12px; color: #f39c12; margin-top: 5px;">
                                         💡 ${matches.length}개의 낮은 점수 후보가 있습니다. 수동 선택을 시도해보세요.
+                                        ${extractedInfo.buildingNames.length > 0 ? 
+                                            `<br>🏢 추출된 건물명 "${extractedInfo.buildingNames[0]}"와 일치하는 고객을 찾아보세요.` : ''}
                                     </div>
                                 ` : ''}
                             `}

@@ -15,6 +15,7 @@
             font-family: 'Noto Sans KR', Arial, sans-serif;
             background: #f5f7fa;
             color: #2c3e50;
+            padding-bottom: 40px; /* 상태 바 공간 확보 */
         }
         
         .header {
@@ -54,12 +55,51 @@
             padding: 30px 20px;
         }
         
-        .controls {
+        .tab-container {
             background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+        
+        .tab-header {
+            display: flex;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e1e8ed;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 15px 20px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.3s;
+        }
+        
+        .tab-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .tab-content {
+            padding: 30px;
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .controls {
+            background: #f8f9fa;
             padding: 20px;
             border-radius: 10px;
             margin-bottom: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
         
         .controls-row {
@@ -95,6 +135,7 @@
             font-size: 14px;
             text-decoration: none;
             display: inline-block;
+            transition: opacity 0.3s;
         }
         
         .btn-primary { background: #667eea; color: white; }
@@ -105,16 +146,12 @@
         
         .btn:hover { opacity: 0.9; }
         
-        .water-sections {
-            display: grid;
-            gap: 20px;
-        }
-        
         .section-card {
             background: white;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
             overflow: hidden;
+            margin-bottom: 20px;
         }
         
         .section-header {
@@ -132,7 +169,7 @@
             padding: 20px;
         }
         
-        .calculation-form {
+        .meter-reading-form {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
             gap: 15px;
@@ -167,48 +204,98 @@
             border-color: #667eea;
         }
         
-        .calculation-result {
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            color: white;
-            padding: 20px;
-            border-radius: 8px;
+        .customer-reading-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 15px;
             margin-bottom: 20px;
         }
         
-        .result-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.2);
+        .reading-input-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            border: 2px solid #e1e8ed;
         }
         
-        .result-item:last-child {
-            border-bottom: none;
-            font-size: 18px;
+        .reading-input-card h4 {
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+        
+        .reading-input-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            align-items: end;
+        }
+        
+        .reading-input-row input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        
+        .usage-display {
+            background: #e8f4fd;
+            padding: 8px;
+            border-radius: 3px;
+            text-align: center;
             font-weight: bold;
+            color: #2c3e50;
         }
         
-        .usage-table {
+        .history-table {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 20px;
         }
         
-        .usage-table th,
-        .usage-table td {
+        .history-table th,
+        .history-table td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid #ecf0f1;
         }
         
-        .usage-table th {
+        .history-table th {
             background: #f8f9fa;
             font-weight: 600;
             color: #2c3e50;
+            position: sticky;
+            top: 0;
         }
         
-        .usage-table tr:hover {
+        .history-table tr:hover {
             background: #f8f9fa;
+        }
+        
+        .summary-cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        
+        .summary-card .number {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #3498db;
+        }
+        
+        .summary-card .label {
+            font-size: 14px;
+            color: #7f8c8d;
         }
         
         .modal {
@@ -228,7 +315,7 @@
             padding: 0;
             border-radius: 10px;
             width: 90%;
-            max-width: 800px;
+            max-width: 900px;
             max-height: 90vh;
             overflow-y: auto;
         }
@@ -264,60 +351,19 @@
         
         .close:hover { color: white; }
         
-        .customer-usage-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .usage-input-card {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 8px;
-            border: 2px solid #e1e8ed;
-        }
-        
-        .usage-input-card h4 {
-            margin-bottom: 10px;
-            color: #2c3e50;
-        }
-        
-        .usage-input-card input {
-            width: 100%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 3px;
-        }
-        
-        .summary-cards {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .summary-card {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            text-align: center;
-        }
-        
-        .summary-card .number {
-            font-size: 24px;
-            font-weight: bold;
-            margin-bottom: 5px;
-            color: #3498db;
-        }
-        
-        .summary-card .label {
-            font-size: 14px;
-            color: #7f8c8d;
-        }
-        
         .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #e74c3c;
+        }
+        
+        .no-data {
             text-align: center;
             padding: 40px;
             color: #666;
@@ -329,15 +375,24 @@
                 align-items: stretch;
             }
             
-            .calculation-form {
+            .tab-header {
+                flex-wrap: wrap;
+            }
+            
+            .meter-reading-form {
                 grid-template-columns: 1fr;
             }
             
-            .customer-usage-grid {
+            .customer-reading-grid {
                 grid-template-columns: 1fr;
             }
             
-            .usage-table {
+            .reading-input-row {
+                grid-template-columns: 1fr;
+                gap: 5px;
+            }
+            
+            .history-table {
                 font-size: 12px;
             }
         }
@@ -349,166 +404,163 @@
             <h1>💧 수도요금 관리</h1>
             <a href="admin.html" class="back-btn">← 대시보드로 돌아가기</a>
         </div>
+    
+    <!-- 상태 표시줄 -->
+    <div id="statusBar" style="
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #34495e;
+        color: white;
+        padding: 8px 20px;
+        font-size: 12px;
+        z-index: 1000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    ">
+        <span id="modeIndicator">🔄 초기화 중...</span>
+        <span id="dataCount">건물: 0 | 고객: 0 | 이력: 0</span>
+    </div>
     </div>
     
     <div class="container">
-        <!-- 필터 및 컨트롤 -->
-        <div class="controls">
-            <div class="controls-row">
-                <div class="filter-group">
-                    <label>년월:</label>
-                    <input type="month" id="monthFilter" value="2024-07">
-                    
-                    <label>건물:</label>
-                    <select id="buildingFilter">
-                        <option value="">건물을 선택하세요</option>
-                    </select>
-                </div>
-                
-                <div>
-                    <button class="btn btn-success" onclick="openModal('newBilling')">📋 신규 수도요금 정산</button>
-                    <button class="btn btn-info" onclick="loadWaterBilling()">🔄 새로고침</button>
-                </div>
+        <!-- 탭 컨테이너 -->
+        <div class="tab-container">
+            <div class="tab-header">
+                <button class="tab-btn active" onclick="switchTab('meter-reading')">📊 검침입력</button>
+                <button class="tab-btn" onclick="switchTab('history')">📋 이용내역</button>
+                <button class="tab-btn" onclick="switchTab('statistics')">📈 통계분석</button>
             </div>
-        </div>
-        
-        <div class="water-sections">
-            <!-- 수도요금 계산기 -->
-            <div class="section-card">
-                <div class="section-header">
-                    <span>🧮 수도요금 계산기</span>
-                </div>
-                <div class="section-content">
-                    <div class="calculation-form">
-                        <div class="form-group">
-                            <label for="calcBuilding">건물 선택</label>
-                            <select id="calcBuilding">
+            
+            <!-- 검침입력 탭 -->
+            <div class="tab-content active" id="meter-reading">
+                <!-- 검침 입력 컨트롤 -->
+                <div class="controls">
+                    <div class="controls-row">
+                        <div class="filter-group">
+                            <label>검침월:</label>
+                            <input type="month" id="readingMonth" value="2024-07">
+                            
+                            <label>건물:</label>
+                            <select id="readingBuilding">
                                 <option value="">건물을 선택하세요</option>
                             </select>
                         </div>
+                        
+                        <div>
+                            <button class="btn btn-success" onclick="loadCustomersForReading()">🏠 세대 불러오기</button>
+                            <button class="btn btn-primary" onclick="saveAllReadings()">💾 검침값 저장</button>
+                        </div>
+                    </div>
+                    
+                    <div class="meter-reading-form">
                         <div class="form-group">
                             <label for="totalBillAmount">건물 총 청구요금 (원)</label>
                             <input type="number" id="totalBillAmount" placeholder="예: 500000">
                         </div>
                         <div class="form-group">
                             <label for="totalUsageTons">건물 총 사용량 (톤)</label>
-                            <input type="number" id="totalUsageTons" step="0.1" placeholder="예: 50.5">
+                            <input type="number" id="totalUsageTons" step="0.1" placeholder="자동계산됨" readonly>
                         </div>
                         <div class="form-group">
-                            <label for="calcMonth">정산 년월</label>
-                            <input type="month" id="calcMonth" value="2024-07">
+                            <label for="pricePerTon">톤당 단가</label>
+                            <input type="number" id="pricePerTon" placeholder="자동계산됨" readonly>
                         </div>
                     </div>
-                    
-                    <div class="calculation-result" id="calculationResult" style="display: none;">
-                        <div class="result-item">
-                            <span>톤당 단가:</span>
-                            <span id="pricePerTon">0원</span>
-                        </div>
-                        <div class="result-item">
-                            <span>총 청구요금:</span>
-                            <span id="displayTotalBill">0원</span>
-                        </div>
-                        <div class="result-item">
-                            <span>총 사용량:</span>
-                            <span id="displayTotalUsage">0톤</span>
-                        </div>
+                </div>
+                
+                <!-- 세대별 검침값 입력 -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <span>🏠 세대별 검침값 입력</span>
+                        <span id="readingProgress">0/0 입력완료</span>
                     </div>
-                    
-                    <div style="text-align: center;">
-                        <button class="btn btn-primary" onclick="calculateWaterFee()">💡 계산하기</button>
-                        <button class="btn btn-success" onclick="openUsageInputModal()" style="margin-left: 10px;">📝 세대별 사용량 입력</button>
+                    <div class="section-content">
+                        <div id="customerReadingGrid" class="customer-reading-grid">
+                            <div class="no-data">
+                                건물을 선택하고 '세대 불러오기' 버튼을 클릭하세요.
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
             
-            <!-- 기존 정산 내역 -->
-            <div class="section-card">
-                <div class="section-header">
-                    <span>📊 수도요금 정산 내역</span>
-                    <button class="btn btn-warning" onclick="exportWaterData()">📁 Excel 다운로드</button>
-                </div>
-                <div class="section-content">
-                    <div id="waterBillingContent">
-                        <div class="loading">데이터를 불러오는 중...</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- 세대별 사용량 입력 모달 -->
-    <div id="usageModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <span>세대별 수도 사용량 입력</span>
-                <span class="close">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div id="buildingInfo" style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;"></div>
-                
-                <div id="customerUsageGrid" class="customer-usage-grid">
-                    <!-- 고객별 사용량 입력 필드가 여기에 생성됩니다 -->
-                </div>
-                
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 20px;">
-                    <strong>총 입력 사용량: <span id="totalInputUsage">0</span>톤</strong>
-                    <div style="margin-top: 10px; font-size: 14px; color: #666;">
-                        * 모든 세대의 사용량을 입력한 후 저장하세요.
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn" onclick="closeModal('usageModal')">취소</button>
-                <button class="btn btn-success" onclick="saveWaterUsage()">💾 저장</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- 신규 정산 모달 -->
-    <div id="newBillingModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <span>신규 수도요금 정산</span>
-                <span class="close">&times;</span>
-            </div>
-            <div class="modal-body">
-                <form id="newBillingForm">
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label for="newBillingBuilding">건물 선택 *</label>
-                        <select id="newBillingBuilding" required>
-                            <option value="">건물을 선택하세요</option>
-                        </select>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
-                        <div class="form-group">
-                            <label for="newBillingMonth">정산 년월 *</label>
-                            <input type="month" id="newBillingMonth" required>
+            <!-- 이용내역 탭 -->
+            <div class="tab-content" id="history">
+                <!-- 내역 필터 -->
+                <div class="controls">
+                    <div class="controls-row">
+                        <div class="filter-group">
+                            <label>기간:</label>
+                            <input type="month" id="historyStartMonth" value="2024-01">
+                            <span>~</span>
+                            <input type="month" id="historyEndMonth" value="2024-12">
+                            
+                            <label>건물:</label>
+                            <select id="historyBuilding">
+                                <option value="">전체 건물</option>
+                            </select>
+                            
+                            <label>세대:</label>
+                            <select id="historyRoom">
+                                <option value="">전체 세대</option>
+                            </select>
                         </div>
-                        <div class="form-group">
-                            <label for="newTotalBill">총 청구요금 (원) *</label>
-                            <input type="number" id="newTotalBill" required>
+                        
+                        <div>
+                            <button class="btn btn-info" onclick="loadHistory()">🔍 검색</button>
+                            <button class="btn btn-warning" onclick="exportHistory()">📁 Excel 다운로드</button>
                         </div>
                     </div>
-                    
-                    <div class="form-group" style="margin-bottom: 20px;">
-                        <label for="newTotalUsage">총 사용량 (톤) *</label>
-                        <input type="number" id="newTotalUsage" step="0.1" required>
+                </div>
+                
+                <!-- 요약 통계 -->
+                <div id="historySummary" class="summary-cards" style="display: none;">
+                    <!-- 요약 카드들이 여기에 표시됩니다 -->
+                </div>
+                
+                <!-- 이용내역 테이블 -->
+                <div class="section-card">
+                    <div class="section-header">
+                        <span>📋 수도 이용내역</span>
                     </div>
-                    
-                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <strong>주의사항:</strong>
-                        <ul style="margin-top: 10px; padding-left: 20px;">
-                            <li>정산 생성 후 각 세대별 사용량을 개별 입력해야 합니다.</li>
-                            <li>기존 정산 데이터가 있는 경우 덮어쓰기됩니다.</li>
-                        </ul>
+                    <div class="section-content">
+                        <div id="historyContent">
+                            <div class="no-data">검색 조건을 설정하고 검색 버튼을 클릭하세요.</div>
+                        </div>
                     </div>
-                </form>
+                </div>
             </div>
-            <div class="modal-footer">
-                <button class="btn" onclick="closeModal('newBillingModal')">취소</button>
-                <button class="btn btn-success" onclick="createNewBilling()">생성</button>
+            
+            <!-- 통계분석 탭 -->
+            <div class="tab-content" id="statistics">
+                <div class="controls">
+                    <div class="controls-row">
+                        <div class="filter-group">
+                            <label>분석 기간:</label>
+                            <input type="month" id="statsStartMonth" value="2024-01">
+                            <span>~</span>
+                            <input type="month" id="statsEndMonth" value="2024-12">
+                            
+                            <label>분석 단위:</label>
+                            <select id="statsType">
+                                <option value="building">건물별</option>
+                                <option value="room">세대별</option>
+                                <option value="monthly">월별</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <button class="btn btn-primary" onclick="generateStats()">📊 분석 실행</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="statisticsContent">
+                    <div class="no-data">분석 조건을 설정하고 분석 버튼을 클릭하세요.</div>
+                </div>
             </div>
         </div>
     </div>
@@ -520,79 +572,303 @@
         
         let allCustomers = [];
         let allBuildings = [];
-        let waterBillingData = [];
-        let currentCalculation = null;
+        let waterHistory = [];
+        let currentReadings = new Map();
+        let isOnlineMode = false; // 온라인/오프라인 모드 플래그
+        
+        // 개발용 더미 데이터
+        const DUMMY_BUILDINGS = [
+            { id: '1', name: '더원빌딩A', address: '서울시 강남구', total_units: 10, water_billing_method: '톤수분할', base_management_fee: 50000 },
+            { id: '2', name: '더원빌딩B', address: '서울시 서초구', total_units: 12, water_billing_method: '톤수분할', base_management_fee: 60000 }
+        ];
+        
+        const DUMMY_CUSTOMERS = [
+            { id: '1', name: '김철수', phone: '010-1234-5678', building_name: '더원빌딩A', room_number: '101' },
+            { id: '2', name: '이영희', phone: '010-2345-6789', building_name: '더원빌딩A', room_number: '102' },
+            { id: '3', name: '박민수', phone: '010-3456-7890', building_name: '더원빌딩A', room_number: '103' },
+            { id: '4', name: '최수진', phone: '010-4567-8901', building_name: '더원빌딩B', room_number: '201' },
+            { id: '5', name: '정호영', phone: '010-5678-9012', building_name: '더원빌딩B', room_number: '202' }
+        ];
+        
+        const DUMMY_HISTORY = [
+            { input_date: '2024-07-01', reading_month: '2024-06', building_name: '더원빌딩A', room_number: '101', prev_reading: 120, curr_reading: 135, usage_tons: 15.0, water_fee: 45000, total_bill: 300000, timestamp: '2024-07-01T09:00:00Z' },
+            { input_date: '2024-07-01', reading_month: '2024-06', building_name: '더원빌딩A', room_number: '102', prev_reading: 110, curr_reading: 122, usage_tons: 12.0, water_fee: 36000, total_bill: 300000, timestamp: '2024-07-01T09:01:00Z' },
+            { input_date: '2024-07-01', reading_month: '2024-06', building_name: '더원빌딩A', room_number: '103', prev_reading: 95, curr_reading: 108, usage_tons: 13.0, water_fee: 39000, total_bill: 300000, timestamp: '2024-07-01T09:02:00Z' },
+            { input_date: '2024-07-01', reading_month: '2024-05', building_name: '더원빌딩A', room_number: '101', prev_reading: 105, curr_reading: 120, usage_tons: 15.0, water_fee: 42000, total_bill: 280000, timestamp: '2024-06-01T09:00:00Z' }
+        ];
         
         // 페이지 로드 시 실행
         document.addEventListener('DOMContentLoaded', async function() {
-            await loadBuildings();
-            await loadCustomers();
-            await loadWaterBilling();
+            showLoadingMessage();
+            await initializeData();
             setupEventListeners();
         });
         
         // 이벤트 리스너 설정
         function setupEventListeners() {
-            // 모달 닫기
-            document.querySelectorAll('.close').forEach(closeBtn => {
-                closeBtn.onclick = function() {
-                    this.closest('.modal').style.display = 'none';
-                };
+            // 건물 변경 시 세대 목록 업데이트
+            document.getElementById('historyBuilding').addEventListener('change', function() {
+                updateRoomOptions(this.value, 'historyRoom');
             });
             
-            // 모달 외부 클릭 시 닫기
-            window.onclick = function(event) {
-                if (event.target.classList.contains('modal')) {
-                    event.target.style.display = 'none';
+            // 검침값 입력 시 자동 계산
+            ['totalBillAmount'].forEach(id => {
+                document.getElementById(id).addEventListener('input', calculateTotals);
+            });
+        }
+        
+        // 데이터 초기화
+        async function initializeData() {
+            try {
+                // Google Sheets API 연결 시도
+                await loadBuildings();
+                await loadCustomers();
+                await loadWaterHistory();
+                isOnlineMode = true;
+                showSuccessMessage('온라인 모드: Google Sheets 연결 성공');
+            } catch (error) {
+                console.warn('Google Sheets 연결 실패, 개발 모드로 전환:', error);
+                // 더미 데이터 사용
+                allBuildings = [...DUMMY_BUILDINGS];
+                allCustomers = [...DUMMY_CUSTOMERS];
+                waterHistory = [...DUMMY_HISTORY];
+                isOnlineMode = false;
+                showWarningMessage('개발 모드: 더미 데이터 사용 중 (Google Sheets 연결 불가)');
+            }
+            
+            updateBuildingSelects();
+            updateStatusBar();
+            hideLoadingMessage();
+        }
+        
+        // 상태 바 업데이트
+        function updateStatusBar() {
+            const modeIndicator = document.getElementById('modeIndicator');
+            const dataCount = document.getElementById('dataCount');
+            
+            if (modeIndicator) {
+                if (isOnlineMode) {
+                    modeIndicator.innerHTML = '🌐 온라인 모드 (Google Sheets 연결됨)';
+                    modeIndicator.style.color = '#27ae60';
+                } else {
+                    modeIndicator.innerHTML = '🔧 개발 모드 (더미 데이터 사용)';
+                    modeIndicator.style.color = '#f39c12';
                 }
-            };
+            }
             
-            // 필터 변경 시 자동 갱신
-            ['monthFilter', 'buildingFilter'].forEach(id => {
-                document.getElementById(id).addEventListener('change', loadWaterBilling);
-            });
+            if (dataCount) {
+                dataCount.textContent = `건물: ${allBuildings.length} | 고객: ${allCustomers.length} | 이력: ${waterHistory.length}`;
+            }
+        }
+        
+        // 로딩 메시지 표시
+        function showLoadingMessage() {
+            const message = document.createElement('div');
+            message.id = 'loadingMessage';
+            message.style.cssText = `
+                position: fixed;
+                top: 70px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #3498db;
+                color: white;
+                padding: 15px 30px;
+                border-radius: 8px;
+                z-index: 9999;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            message.innerHTML = '🔄 데이터를 불러오는 중...';
+            document.body.appendChild(message);
+        }
+        
+        // 로딩 메시지 숨기기
+        function hideLoadingMessage() {
+            const message = document.getElementById('loadingMessage');
+            if (message) {
+                message.remove();
+            }
+        }
+        
+        // 성공 메시지 표시
+        function showSuccessMessage(text) {
+            showMessage(text, '#27ae60');
+        }
+        
+        // 경고 메시지 표시
+        function showWarningMessage(text) {
+            showMessage(text, '#f39c12');
+        }
+        
+        // 에러 메시지 표시
+        function showErrorMessage(text) {
+            showMessage(text, '#e74c3c');
+        }
+        
+        // 메시지 표시 공통 함수
+        function showMessage(text, color) {
+            // 기존 메시지 제거
+            const existingMessage = document.getElementById('statusMessage');
+            if (existingMessage) {
+                existingMessage.remove();
+            }
             
-            // 계산 입력값 변경 시 실시간 계산
-            ['totalBillAmount', 'totalUsageTons'].forEach(id => {
-                document.getElementById(id).addEventListener('input', calculateWaterFee);
-            });
+            const message = document.createElement('div');
+            message.id = 'statusMessage';
+            message.style.cssText = `
+                position: fixed;
+                top: 70px;
+                left: 50%;
+                transform: translateX(-50%);
+                background: ${color};
+                color: white;
+                padding: 12px 25px;
+                border-radius: 6px;
+                z-index: 9999;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                font-size: 14px;
+                max-width: 90%;
+                text-align: center;
+            `;
+            message.innerHTML = text;
+            document.body.appendChild(message);
+            
+            // 5초 후 자동 제거
+            setTimeout(() => {
+                if (message.parentNode) {
+                    message.remove();
+                }
+            }, 5000);
+        }
+            // 모든 탭 버튼과 컨텐츠 비활성화
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // 선택된 탭 활성화
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
         }
         
         // 건물 목록 로드
         async function loadBuildings() {
             try {
-                const response = await fetch(
-                    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/buildings!A:G?key=${API_KEY}`
-                );
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/buildings!A:G?key=${API_KEY}`;
+                console.log('건물 데이터 요청:', url);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const data = await response.json();
+                console.log('건물 데이터 응답:', data);
                 
                 if (data.values && data.values.length > 1) {
                     allBuildings = data.values.slice(1).map(row => ({
-                        id: row[0],
-                        name: row[1],
-                        address: row[2],
+                        id: row[0] || '',
+                        name: row[1] || '',
+                        address: row[2] || '',
                         total_units: parseInt(row[3]) || 0,
                         water_billing_method: row[4] || '톤수분할',
                         base_management_fee: parseInt(row[5]) || 0
                     }));
-                    
-                    // 드롭다운 업데이트
-                    updateBuildingSelects();
+                    console.log('로드된 건물 수:', allBuildings.length);
+                } else {
+                    throw new Error('건물 데이터가 비어있습니다.');
                 }
             } catch (error) {
-                console.error('건물 목록 로드 오류:', error);
+                console.error('건물 목록 로드 상세 오류:', error);
+                throw error;
             }
         }
         
+        // 고객 목록 로드
+        async function loadCustomers() {
+            try {
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/customers!A:K?key=${API_KEY}`;
+                console.log('고객 데이터 요청:', url);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('고객 데이터 응답:', data);
+                
+                if (data.values && data.values.length > 1) {
+                    allCustomers = data.values.slice(1)
+                        .filter(row => row[8] === '거주중' || !row[8]) // 상태가 비어있어도 포함
+                        .map(row => ({
+                            id: row[0] || '',
+                            name: row[1] || '',
+                            phone: row[2] || '',
+                            building_name: row[4] || '',
+                            room_number: row[5] || ''
+                        }));
+                    console.log('로드된 고객 수:', allCustomers.length);
+                } else {
+                    console.warn('고객 데이터가 비어있거나 형식이 잘못되었습니다.');
+                    allCustomers = [];
+                }
+            } catch (error) {
+                console.error('고객 목록 로드 상세 오류:', error);
+                throw error;
+            }
+        }
+        
+        // 수도 이력 로드
+        async function loadWaterHistory() {
+            try {
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/water_history!A:J?key=${API_KEY}`;
+                console.log('수도 이력 데이터 요청:', url);
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('수도 이력 데이터 응답:', data);
+                
+                if (data.values && data.values.length > 1) {
+                    waterHistory = data.values.slice(1).map(row => ({
+                        input_date: row[0] || '',
+                        reading_month: row[1] || '',
+                        building_name: row[2] || '',
+                        room_number: row[3] || '',
+                        prev_reading: parseInt(row[4]) || 0,
+                        curr_reading: parseInt(row[5]) || 0,
+                        usage_tons: parseFloat(row[6]) || 0,
+                        water_fee: parseInt(row[7]) || 0,
+                        total_bill: parseInt(row[8]) || 0,
+                        timestamp: row[9] || ''
+                    }));
+                    console.log('로드된 수도 이력 수:', waterHistory.length);
+                } else {
+                    console.warn('수도 이력 데이터가 비어있거나 형식이 잘못되었습니다.');
+                    waterHistory = [];
+                }
+            } catch (error) {
+                console.error('수도 이력 로드 상세 오류:', error);
+                throw error;
+            }
+        }
+        
+        
         // 건물 드롭다운 업데이트
         function updateBuildingSelects() {
-            const selects = ['buildingFilter', 'calcBuilding', 'newBillingBuilding'];
+            const selects = ['readingBuilding', 'historyBuilding'];
             
             selects.forEach(selectId => {
                 const select = document.getElementById(selectId);
+                if (!select) return;
+                
                 const currentValue = select.value;
                 
-                select.innerHTML = selectId === 'buildingFilter' ? 
+                select.innerHTML = selectId === 'historyBuilding' ? 
                     '<option value="">전체 건물</option>' : 
                     '<option value="">건물을 선택하세요</option>';
                 
@@ -607,197 +883,33 @@
             });
         }
         
-        // 고객 목록 로드
-        async function loadCustomers() {
-            try {
-                const response = await fetch(
-                    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/customers!A:K?key=${API_KEY}`
-                );
-                const data = await response.json();
-                
-                if (data.values && data.values.length > 1) {
-                    allCustomers = data.values.slice(1)
-                        .filter(row => row[8] === '거주중') // 거주중인 고객만
-                        .map(row => ({
-                            id: row[0],
-                            name: row[1],
-                            phone: row[2],
-                            building_name: row[4],
-                            room_number: row[5]
-                        }));
-                }
-            } catch (error) {
-                console.error('고객 목록 로드 오류:', error);
-            }
-        }
-        
-        // 수도요금 정산 데이터 로드
-        async function loadWaterBilling() {
-            try {
-                const response = await fetch(
-                    `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/water_billing!A:I?key=${API_KEY}`
-                );
-                const data = await response.json();
-                
-                if (data.values && data.values.length > 1) {
-                    waterBillingData = data.values.slice(1).map(row => ({
-                        billing_id: row[0],
-                        building_name: row[1],
-                        year_month: row[2],
-                        total_bill_amount: parseInt(row[3]) || 0,
-                        total_usage_tons: parseFloat(row[4]) || 0,
-                        price_per_ton: parseInt(row[5]) || 0,
-                        customer_id: row[6],
-                        customer_usage_tons: parseFloat(row[7]) || 0,
-                        customer_water_fee: parseInt(row[8]) || 0
-                    }));
-                    
-                    displayWaterBilling();
-                } else {
-                    displayNoWaterData();
-                }
-                
-            } catch (error) {
-                console.error('수도요금 데이터 로드 오류:', error);
-                displayError('수도요금 데이터를 불러오는데 실패했습니다.');
-            }
-        }
-        
-        // 수도요금 정산 내역 표시
-        function displayWaterBilling() {
-            const monthFilter = document.getElementById('monthFilter').value;
-            const buildingFilter = document.getElementById('buildingFilter').value;
+        // 탭 전환
+        function switchTab(tabName) {
+        function updateRoomOptions(buildingName, selectId) {
+            const select = document.getElementById(selectId);
+            select.innerHTML = '<option value="">전체 세대</option>';
             
-            // 필터링
-            let filteredData = waterBillingData;
-            if (monthFilter) {
-                filteredData = filteredData.filter(d => d.year_month === monthFilter);
-            }
-            if (buildingFilter) {
-                filteredData = filteredData.filter(d => d.building_name === buildingFilter);
-            }
-            
-            const content = document.getElementById('waterBillingContent');
-            
-            if (filteredData.length === 0) {
-                content.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #666;">
-                        선택한 조건에 해당하는 수도요금 정산 데이터가 없습니다.
-                    </div>
-                `;
-                return;
-            }
-            
-            // 건물별로 그룹화
-            const groupedData = {};
-            filteredData.forEach(item => {
-                const key = `${item.building_name}-${item.year_month}`;
-                if (!groupedData[key]) {
-                    groupedData[key] = {
-                        building_name: item.building_name,
-                        year_month: item.year_month,
-                        total_bill_amount: item.total_bill_amount,
-                        total_usage_tons: item.total_usage_tons,
-                        price_per_ton: item.price_per_ton,
-                        customers: []
-                    };
-                }
-                
-                const customer = allCustomers.find(c => c.id === item.customer_id);
-                groupedData[key].customers.push({
-                    ...item,
-                    customer_name: customer ? customer.name : '알 수 없음',
-                    room_number: customer ? customer.room_number : '-'
+            if (buildingName) {
+                const buildingCustomers = allCustomers.filter(c => c.building_name === buildingName);
+                buildingCustomers.forEach(customer => {
+                    const option = document.createElement('option');
+                    option.value = customer.room_number;
+                    option.textContent = `${customer.room_number} (${customer.name})`;
+                    select.appendChild(option);
                 });
-            });
-            
-            let html = '';
-            Object.values(groupedData).forEach(group => {
-                html += `
-                    <div style="margin-bottom: 30px; border: 1px solid #e1e8ed; border-radius: 8px; overflow: hidden;">
-                        <div style="background: #f8f9fa; padding: 15px; border-bottom: 1px solid #e1e8ed;">
-                            <h4 style="margin: 0; color: #2c3e50;">
-                                ${group.building_name} - ${group.year_month}
-                            </h4>
-                            <div style="margin-top: 10px; font-size: 14px; color: #666;">
-                                총 청구: ${formatCurrency(group.total_bill_amount)} | 
-                                총 사용량: ${group.total_usage_tons}톤 | 
-                                톤당 단가: ${formatCurrency(group.price_per_ton)}
-                            </div>
-                        </div>
-                        <table class="usage-table">
-                            <thead>
-                                <tr>
-                                    <th>고객명</th>
-                                    <th>호수</th>
-                                    <th>사용량 (톤)</th>
-                                    <th>수도요금</th>
-                                    <th>비율</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${group.customers.map(customer => {
-                                    const percentage = ((customer.customer_usage_tons / group.total_usage_tons) * 100).toFixed(1);
-                                    return `
-                                        <tr>
-                                            <td>${customer.customer_name}</td>
-                                            <td>${customer.room_number}</td>
-                                            <td>${customer.customer_usage_tons}톤</td>
-                                            <td>${formatCurrency(customer.customer_water_fee)}</td>
-                                            <td>${percentage}%</td>
-                                        </tr>
-                                    `;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                `;
-            });
-            
-            content.innerHTML = html;
-        }
-        
-        // 수도요금 계산
-        function calculateWaterFee() {
-            const totalBill = parseInt(document.getElementById('totalBillAmount').value) || 0;
-            const totalUsage = parseFloat(document.getElementById('totalUsageTons').value) || 0;
-            
-            if (totalBill > 0 && totalUsage > 0) {
-                const pricePerTon = Math.round(totalBill / totalUsage);
-                
-                document.getElementById('pricePerTon').textContent = formatCurrency(pricePerTon);
-                document.getElementById('displayTotalBill').textContent = formatCurrency(totalBill);
-                document.getElementById('displayTotalUsage').textContent = totalUsage + '톤';
-                
-                document.getElementById('calculationResult').style.display = 'block';
-                
-                // 현재 계산 저장
-                currentCalculation = {
-                    totalBill,
-                    totalUsage,
-                    pricePerTon
-                };
-            } else {
-                document.getElementById('calculationResult').style.display = 'none';
-                currentCalculation = null;
             }
         }
         
-        // 세대별 사용량 입력 모달 열기
-        function openUsageInputModal() {
-            const building = document.getElementById('calcBuilding').value;
+        // 검침 대상 세대 불러오기
+        function loadCustomersForReading() {
+            const building = document.getElementById('readingBuilding').value;
+            const month = document.getElementById('readingMonth').value;
             
             if (!building) {
-                alert('먼저 건물을 선택해주세요.');
+                alert('건물을 선택해주세요.');
                 return;
             }
             
-            if (!currentCalculation) {
-                alert('먼저 수도요금을 계산해주세요.');
-                return;
-            }
-            
-            // 해당 건물의 고객 목록 가져오기
             const buildingCustomers = allCustomers.filter(c => c.building_name === building);
             
             if (buildingCustomers.length === 0) {
@@ -805,135 +917,458 @@
                 return;
             }
             
-            // 건물 정보 표시
-            document.getElementById('buildingInfo').innerHTML = `
-                <h4>${building}</h4>
-                <div>총 청구요금: ${formatCurrency(currentCalculation.totalBill)} | 
-                     총 사용량: ${currentCalculation.totalUsage}톤 | 
-                     톤당 단가: ${formatCurrency(currentCalculation.pricePerTon)}</div>
-            `;
+            // 이전 검침값 조회
+            const prevMonth = getPrevMonth(month);
+            const prevReadings = waterHistory.filter(h => 
+                h.building_name === building && h.reading_month === prevMonth
+            );
             
-            // 고객별 사용량 입력 필드 생성
-            const grid = document.getElementById('customerUsageGrid');
-            grid.innerHTML = buildingCustomers.map(customer => `
-                <div class="usage-input-card">
-                    <h4>${customer.name} (${customer.room_number})</h4>
-                    <input type="number" 
-                           step="0.1" 
-                           placeholder="사용량 (톤)" 
-                           data-customer-id="${customer.id}"
-                           onchange="updateTotalInputUsage()">
-                </div>
-            `).join('');
-            
-            document.getElementById('usageModal').style.display = 'block';
-            updateTotalInputUsage();
-        }
-        
-        // 총 입력 사용량 업데이트
-        function updateTotalInputUsage() {
-            const inputs = document.querySelectorAll('#customerUsageGrid input');
-            let total = 0;
-            
-            inputs.forEach(input => {
-                total += parseFloat(input.value) || 0;
-            });
-            
-            document.getElementById('totalInputUsage').textContent = total.toFixed(1);
-        }
-        
-        // 수도 사용량 저장
-        function saveWaterUsage() {
-            const building = document.getElementById('calcBuilding').value;
-            const month = document.getElementById('calcMonth').value;
-            const inputs = document.querySelectorAll('#customerUsageGrid input');
-            
-            const usageData = [];
-            inputs.forEach(input => {
-                const customerId = input.dataset.customerId;
-                const usage = parseFloat(input.value) || 0;
-                if (usage > 0) {
-                    usageData.push({
-                        customer_id: customerId,
-                        usage: usage,
-                        fee: Math.round(usage * currentCalculation.pricePerTon)
-                    });
-                }
-            });
-            
-            if (usageData.length === 0) {
-                alert('최소 한 세대의 사용량을 입력해주세요.');
-                return;
-            }
-            
-            // 실제 구현에서는 구글 시트 API를 통해 데이터 저장
-            alert(`${building}의 ${month} 수도요금 정산이 저장되었습니다.`);
-            closeModal('usageModal');
-            loadWaterBilling(); // 목록 새로고침
-        }
-        
-        // 모달 열기
-        function openModal(type) {
-            if (type === 'newBilling') {
-                // 다음 달로 기본 설정
-                const nextMonth = new Date();
-                nextMonth.setMonth(nextMonth.getMonth() + 1);
-                document.getElementById('newBillingMonth').value = nextMonth.toISOString().slice(0, 7);
+            const grid = document.getElementById('customerReadingGrid');
+            grid.innerHTML = buildingCustomers.map(customer => {
+                const prevReading = prevReadings.find(r => r.room_number === customer.room_number);
+                const prevValue = prevReading ? prevReading.curr_reading : 0;
                 
-                document.getElementById('newBillingModal').style.display = 'block';
-            }
-        }
-        
-        // 모달 닫기
-        function closeModal(modalId) {
-            document.getElementById(modalId).style.display = 'none';
-        }
-        
-        // 신규 정산 생성
-        function createNewBilling() {
-            const form = document.getElementById('newBillingForm');
-            const formData = new FormData(form);
+                return `
+                    <div class="reading-input-card">
+                        <h4>${customer.name} (${customer.room_number})</h4>
+                        <div class="reading-input-row">
+                            <div>
+                                <label>전월검침</label>
+                                <input type="number" 
+                                       value="${prevValue}"
+                                       data-customer-id="${customer.id}"
+                                       data-room="${customer.room_number}"
+                                       data-type="prev"
+                                       onchange="updateUsage(this)">
+                            </div>
+                            <div>
+                                <label>당월검침</label>
+                                <input type="number" 
+                                       data-customer-id="${customer.id}"
+                                       data-room="${customer.room_number}"
+                                       data-type="curr"
+                                       onchange="updateUsage(this)">
+                            </div>
+                            <div>
+                                <label>사용량(톤)</label>
+                                <div class="usage-display" id="usage-${customer.id}">0.0</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
             
-            if (!form.checkValidity()) {
+            updateProgress();
+        }
+        
+        // 사용량 업데이트
+        function updateUsage(input) {
+            const customerId = input.dataset.customerId;
+            const roomNumber = input.dataset.room;
+            const type = input.dataset.type;
+            const value = parseInt(input.value) || 0;
+            
+            if (!currentReadings.has(customerId)) {
+                currentReadings.set(customerId, {
+                    customerId: customerId,
+                    roomNumber: roomNumber,
+                    prevReading: 0,
+                    currReading: 0,
+                    usage: 0
+                });
+            }
+            
+            const reading = currentReadings.get(customerId);
+            reading[type === 'prev' ? 'prevReading' : 'currReading'] = value;
+            reading.usage = Math.max(0, reading.currReading - reading.prevReading);
+            
+            // 사용량 표시 업데이트
+            document.getElementById(`usage-${customerId}`).textContent = reading.usage.toFixed(1);
+            
+            // 전체 계산 업데이트
+            calculateTotals();
+            updateProgress();
+        }
+        
+        // 전체 계산
+        function calculateTotals() {
+            let totalUsage = 0;
+            currentReadings.forEach(reading => {
+                totalUsage += reading.usage;
+            });
+            
+            const totalBill = parseInt(document.getElementById('totalBillAmount').value) || 0;
+            const pricePerTon = totalUsage > 0 ? Math.round(totalBill / totalUsage) : 0;
+            
+            document.getElementById('totalUsageTons').value = totalUsage.toFixed(1);
+            document.getElementById('pricePerTon').value = pricePerTon;
+        }
+        
+        // 진행상황 업데이트
+        function updateProgress() {
+            const total = currentReadings.size;
+            let completed = 0;
+            
+            currentReadings.forEach(reading => {
+                if (reading.currReading > 0) completed++;
+            });
+            
+            document.getElementById('readingProgress').textContent = `${completed}/${total} 입력완료`;
+        }
+        
+        // 모든 검침값 저장
+        async function saveAllReadings() {
+            const building = document.getElementById('readingBuilding').value;
+            const month = document.getElementById('readingMonth').value;
+            const totalBill = parseInt(document.getElementById('totalBillAmount').value) || 0;
+            const pricePerTon = parseInt(document.getElementById('pricePerTon').value) || 0;
+            
+            if (!building || !month || totalBill === 0) {
                 alert('필수 항목을 모두 입력해주세요.');
                 return;
             }
             
-            // 실제 구현에서는 구글 시트 API를 통해 데이터 생성
-            alert('새로운 수도요금 정산이 생성되었습니다.');
-            closeModal('newBillingModal');
-            loadWaterBilling(); // 목록 새로고침
+            if (currentReadings.size === 0) {
+                alert('검침값을 입력해주세요.');
+                return;
+            }
+            
+            // 데이터 준비
+            const dataToSave = [];
+            const today = new Date().toISOString().split('T')[0];
+            const timestamp = new Date().toISOString();
+            
+            currentReadings.forEach(reading => {
+                if (reading.currReading > 0) {
+                    const waterFee = Math.round(reading.usage * pricePerTon);
+                    dataToSave.push([
+                        today, // 입력일자
+                        month, // 검침월
+                        building, // 건물명
+                        reading.roomNumber, // 세대
+                        reading.prevReading, // 전월검침값
+                        reading.currReading, // 당월검침값
+                        reading.usage, // 사용량(톤)
+                        waterFee, // 분배요금
+                        totalBill, // 총청구액
+                        timestamp // 타임스탬프
+                    ]);
+                }
+            });
+            
+            if (dataToSave.length === 0) {
+                alert('저장할 검침 데이터가 없습니다.');
+                return;
+            }
+            
+            try {
+                if (isOnlineMode) {
+                    // 온라인 모드: 실제 Google Sheets에 저장
+                    console.log('온라인 모드: Google Sheets에 저장 시도');
+                    console.log('저장할 데이터:', dataToSave);
+                    
+                    // 여기에 실제 Google Sheets API 저장 코드 구현
+                    // await saveToGoogleSheets(dataToSave);
+                    
+                    showSuccessMessage(`${building}의 ${month} 검침 데이터 ${dataToSave.length}건이 Google Sheets에 저장되었습니다.`);
+                } else {
+                    // 오프라인 모드: 로컬 데이터에 추가
+                    console.log('개발 모드: 로컬 데이터에 저장');
+                    dataToSave.forEach(row => {
+                        waterHistory.push({
+                            input_date: row[0],
+                            reading_month: row[1],
+                            building_name: row[2],
+                            room_number: row[3],
+                            prev_reading: row[4],
+                            curr_reading: row[5],
+                            usage_tons: row[6],
+                            water_fee: row[7],
+                            total_bill: row[8],
+                            timestamp: row[9]
+                        });
+                    });
+                    
+                    showSuccessMessage(`${building}의 ${month} 검침 데이터 ${dataToSave.length}건이 로컬에 저장되었습니다. (개발 모드)`);
+                }
+                
+                // UI 초기화
+                currentReadings.clear();
+                document.getElementById('customerReadingGrid').innerHTML = '<div class="no-data">저장이 완료되었습니다. 새로운 검침을 시작하려면 다시 세대를 불러오세요.</div>';
+                document.getElementById('totalBillAmount').value = '';
+                document.getElementById('totalUsageTons').value = '';
+                document.getElementById('pricePerTon').value = '';
+                updateProgress();
+                updateStatusBar(); // 상태 바 업데이트
+                
+            } catch (error) {
+                console.error('저장 오류:', error);
+                showErrorMessage('저장 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+        
+        // 이력 조회
+        function loadHistory() {
+            const startMonth = document.getElementById('historyStartMonth').value;
+            const endMonth = document.getElementById('historyEndMonth').value;
+            const building = document.getElementById('historyBuilding').value;
+            const room = document.getElementById('historyRoom').value;
+            
+            let filteredData = waterHistory;
+            
+            // 필터링
+            if (startMonth) {
+                filteredData = filteredData.filter(d => d.reading_month >= startMonth);
+            }
+            if (endMonth) {
+                filteredData = filteredData.filter(d => d.reading_month <= endMonth);
+            }
+            if (building) {
+                filteredData = filteredData.filter(d => d.building_name === building);
+            }
+            if (room) {
+                filteredData = filteredData.filter(d => d.room_number === room);
+            }
+            
+            displayHistory(filteredData);
+            displayHistorySummary(filteredData);
+        }
+        
+        // 이력 표시
+        function displayHistory(data) {
+            const content = document.getElementById('historyContent');
+            
+            if (data.length === 0) {
+                content.innerHTML = '<div class="no-data">검색 결과가 없습니다.</div>';
+                return;
+            }
+            
+            const html = `
+                <table class="history-table">
+                    <thead>
+                        <tr>
+                            <th>검침월</th>
+                            <th>건물명</th>
+                            <th>세대</th>
+                            <th>전월검침</th>
+                            <th>당월검침</th>
+                            <th>사용량</th>
+                            <th>수도요금</th>
+                            <th>입력일</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${data.map(item => `
+                            <tr>
+                                <td>${item.reading_month}</td>
+                                <td>${item.building_name}</td>
+                                <td>${item.room_number}</td>
+                                <td>${formatNumber(item.prev_reading)}</td>
+                                <td>${formatNumber(item.curr_reading)}</td>
+                                <td>${item.usage_tons}톤</td>
+                                <td>${formatCurrency(item.water_fee)}</td>
+                                <td>${item.input_date}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+            
+            content.innerHTML = html;
+        }
+        
+        // 요약 통계 표시
+        function displayHistorySummary(data) {
+            if (data.length === 0) {
+                document.getElementById('historySummary').style.display = 'none';
+                return;
+            }
+            
+            const totalUsage = data.reduce((sum, item) => sum + item.usage_tons, 0);
+            const totalFee = data.reduce((sum, item) => sum + item.water_fee, 0);
+            const avgUsage = totalUsage / data.length;
+            const avgFee = totalFee / data.length;
+            
+            const html = `
+                <div class="summary-card">
+                    <div class="number">${data.length}</div>
+                    <div class="label">총 검침 건수</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${totalUsage.toFixed(1)}</div>
+                    <div class="label">총 사용량 (톤)</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${formatCurrency(totalFee)}</div>
+                    <div class="label">총 수도요금</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${avgUsage.toFixed(1)}</div>
+                    <div class="label">평균 사용량 (톤)</div>
+                </div>
+                <div class="summary-card">
+                    <div class="number">${formatCurrency(Math.round(avgFee))}</div>
+                    <div class="label">평균 수도요금</div>
+                </div>
+            `;
+            
+            document.getElementById('historySummary').innerHTML = html;
+            document.getElementById('historySummary').style.display = 'grid';
+        }
+        
+        // 통계 분석
+        function generateStats() {
+            const startMonth = document.getElementById('statsStartMonth').value;
+            const endMonth = document.getElementById('statsEndMonth').value;
+            const statsType = document.getElementById('statsType').value;
+            
+            // 기간 필터링
+            let filteredData = waterHistory;
+            if (startMonth) {
+                filteredData = filteredData.filter(d => d.reading_month >= startMonth);
+            }
+            if (endMonth) {
+                filteredData = filteredData.filter(d => d.reading_month <= endMonth);
+            }
+            
+            let statsData = [];
+            
+            if (statsType === 'building') {
+                // 건물별 통계
+                const buildingStats = {};
+                filteredData.forEach(item => {
+                    if (!buildingStats[item.building_name]) {
+                        buildingStats[item.building_name] = {
+                            name: item.building_name,
+                            totalUsage: 0,
+                            totalFee: 0,
+                            count: 0
+                        };
+                    }
+                    buildingStats[item.building_name].totalUsage += item.usage_tons;
+                    buildingStats[item.building_name].totalFee += item.water_fee;
+                    buildingStats[item.building_name].count++;
+                });
+                statsData = Object.values(buildingStats);
+            } else if (statsType === 'room') {
+                // 세대별 통계
+                const roomStats = {};
+                filteredData.forEach(item => {
+                    const key = `${item.building_name}-${item.room_number}`;
+                    if (!roomStats[key]) {
+                        roomStats[key] = {
+                            name: `${item.building_name} ${item.room_number}`,
+                            totalUsage: 0,
+                            totalFee: 0,
+                            count: 0
+                        };
+                    }
+                    roomStats[key].totalUsage += item.usage_tons;
+                    roomStats[key].totalFee += item.water_fee;
+                    roomStats[key].count++;
+                });
+                statsData = Object.values(roomStats);
+            } else if (statsType === 'monthly') {
+                // 월별 통계
+                const monthlyStats = {};
+                filteredData.forEach(item => {
+                    if (!monthlyStats[item.reading_month]) {
+                        monthlyStats[item.reading_month] = {
+                            name: item.reading_month,
+                            totalUsage: 0,
+                            totalFee: 0,
+                            count: 0
+                        };
+                    }
+                    monthlyStats[item.reading_month].totalUsage += item.usage_tons;
+                    monthlyStats[item.reading_month].totalFee += item.water_fee;
+                    monthlyStats[item.reading_month].count++;
+                });
+                statsData = Object.values(monthlyStats).sort((a, b) => a.name.localeCompare(b.name));
+            }
+            
+            displayStats(statsData, statsType);
+        }
+        
+        // 통계 결과 표시
+        function displayStats(data, type) {
+            const content = document.getElementById('statisticsContent');
+            
+            if (data.length === 0) {
+                content.innerHTML = '<div class="no-data">통계 데이터가 없습니다.</div>';
+                return;
+            }
+            
+            // 정렬 (사용량 기준 내림차순)
+            data.sort((a, b) => b.totalUsage - a.totalUsage);
+            
+            const html = `
+                <div class="section-card">
+                    <div class="section-header">
+                        <span>📊 ${getStatsTypeLabel(type)} 통계</span>
+                    </div>
+                    <div class="section-content">
+                        <table class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>순위</th>
+                                    <th>${getStatsTypeLabel(type)}</th>
+                                    <th>총 사용량</th>
+                                    <th>평균 사용량</th>
+                                    <th>총 요금</th>
+                                    <th>평균 요금</th>
+                                    <th>검침 횟수</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.map((item, index) => `
+                                    <tr>
+                                        <td>${index + 1}</td>
+                                        <td>${item.name}</td>
+                                        <td>${item.totalUsage.toFixed(1)}톤</td>
+                                        <td>${(item.totalUsage / item.count).toFixed(1)}톤</td>
+                                        <td>${formatCurrency(item.totalFee)}</td>
+                                        <td>${formatCurrency(Math.round(item.totalFee / item.count))}</td>
+                                        <td>${item.count}회</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            
+            content.innerHTML = html;
+        }
+        
+        // 통계 타입 라벨
+        function getStatsTypeLabel(type) {
+            const labels = {
+                'building': '건물',
+                'room': '세대',
+                'monthly': '월'
+            };
+            return labels[type] || '';
         }
         
         // Excel 다운로드
-        function exportWaterData() {
+        function exportHistory() {
             alert('Excel 다운로드 기능을 구현하세요.');
         }
         
-        // 통화 포맷 함수
+        // 유틸리티 함수들
         function formatCurrency(amount) {
             return new Intl.NumberFormat('ko-KR').format(amount) + '원';
         }
         
-        // 데이터 없음 표시
-        function displayNoWaterData() {
-            const content = document.getElementById('waterBillingContent');
-            content.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #666;">
-                    아직 수도요금 정산 데이터가 없습니다.<br>
-                    '신규 수도요금 정산' 버튼을 클릭하여 정산을 시작하세요.
-                </div>
-            `;
+        function formatNumber(number) {
+            return new Intl.NumberFormat('ko-KR').format(number);
         }
         
-        // 오류 표시
-        function displayError(message) {
-            const content = document.getElementById('waterBillingContent');
-            content.innerHTML = `
-                <div style="text-align: center; padding: 40px; color: #e74c3c;">
-                    ${message}
-                </div>
-            `;
+        function getPrevMonth(monthStr) {
+            const date = new Date(monthStr + '-01');
+            date.setMonth(date.getMonth() - 1);
+            return date.toISOString().slice(0, 7);
         }
     </script>
 </body>

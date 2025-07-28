@@ -15,7 +15,7 @@
             font-family: 'Noto Sans KR', Arial, sans-serif;
             background: #f5f7fa;
             color: #2c3e50;
-            padding-bottom: 40px; /* 상태 바 공간 확보 */
+            padding-bottom: 50px; /* 상태바 공간 확보 */
         }
         
         .header {
@@ -216,34 +216,57 @@
             padding: 15px;
             border-radius: 8px;
             border: 2px solid #e1e8ed;
+            min-height: 120px;
+            display: flex;
+            flex-direction: column;
         }
         
         .reading-input-card h4 {
-            margin-bottom: 10px;
+            margin-bottom: 15px;
             color: #2c3e50;
+            text-align: center;
+            font-size: 16px;
         }
         
         .reading-input-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
+            display: flex;
+            flex-direction: column;
             gap: 10px;
-            align-items: end;
+            flex: 1;
         }
         
-        .reading-input-row input {
+        .reading-input-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .reading-input-item label {
+            font-size: 12px;
+            margin-bottom: 5px;
+            color: #666;
+            text-align: center;
+        }
+        
+        .reading-input-item input {
+            width: 100%;
+            max-width: 120px;
             padding: 8px;
             border: 1px solid #ddd;
-            border-radius: 3px;
+            border-radius: 4px;
             font-size: 14px;
+            text-align: center;
         }
         
         .usage-display {
             background: #e8f4fd;
             padding: 8px;
-            border-radius: 3px;
+            border-radius: 4px;
             text-align: center;
             font-weight: bold;
             color: #2c3e50;
+            font-size: 14px;
+            min-width: 80px;
         }
         
         .history-table {
@@ -298,59 +321,6 @@
             color: #7f8c8d;
         }
         
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.5);
-        }
-        
-        .modal-content {
-            background: white;
-            margin: 30px auto;
-            padding: 0;
-            border-radius: 10px;
-            width: 90%;
-            max-width: 900px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        
-        .modal-header {
-            background: #34495e;
-            color: white;
-            padding: 20px;
-            font-size: 18px;
-            font-weight: 600;
-        }
-        
-        .modal-body {
-            padding: 30px;
-        }
-        
-        .modal-footer {
-            padding: 20px 30px;
-            border-top: 1px solid #ecf0f1;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-        
-        .close {
-            color: #aaa;
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-            padding: 0 10px;
-        }
-        
-        .close:hover { color: white; }
-        
         .loading {
             text-align: center;
             padding: 40px;
@@ -404,25 +374,6 @@
             <h1>💧 수도요금 관리</h1>
             <a href="admin.html" class="back-btn">← 대시보드로 돌아가기</a>
         </div>
-    
-    <!-- 상태 표시줄 -->
-    <div id="statusBar" style="
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        background: #34495e;
-        color: white;
-        padding: 8px 20px;
-        font-size: 12px;
-        z-index: 1000;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    ">
-        <span id="modeIndicator">🔄 초기화 중...</span>
-        <span id="dataCount">건물: 0 | 고객: 0 | 이력: 0</span>
-    </div>
     </div>
     
     <div class="container">
@@ -452,6 +403,7 @@
                         <div>
                             <button class="btn btn-success" onclick="loadCustomersForReading()">🏠 세대 불러오기</button>
                             <button class="btn btn-primary" onclick="saveAllReadings()">💾 검침값 저장</button>
+                            <button class="btn btn-info" onclick="refreshAllData()">🔄 데이터 새로고침</button>
                         </div>
                     </div>
                     
@@ -461,12 +413,20 @@
                             <input type="number" id="totalBillAmount" placeholder="예: 500000">
                         </div>
                         <div class="form-group">
-                            <label for="totalUsageTons">건물 총 사용량 (톤)</label>
+                            <label for="totalUsageTons">건물 총 사용량 (모든 세대 사용량 합계)</label>
                             <input type="number" id="totalUsageTons" step="0.1" placeholder="자동계산됨" readonly>
                         </div>
                         <div class="form-group">
-                            <label for="pricePerTon">톤당 단가</label>
+                            <label for="pricePerTon">톤당 단가 (총청구요금÷총사용량)</label>
                             <input type="number" id="pricePerTon" placeholder="자동계산됨" readonly>
+                        </div>
+                    </div>
+                    
+                    <!-- 계산 요약 정보 -->
+                    <div id="calculationSummary" style="background: #e8f4fd; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: none;">
+                        <h4 style="margin-bottom: 10px; color: #2c3e50;">💡 계산 요약</h4>
+                        <div id="summaryDetails" style="font-size: 14px; color: #666;">
+                            <!-- 계산 세부사항이 여기에 표시됩니다 -->
                         </div>
                     </div>
                 </div>
@@ -512,6 +472,7 @@
                         <div>
                             <button class="btn btn-info" onclick="loadHistory()">🔍 검색</button>
                             <button class="btn btn-warning" onclick="exportHistory()">📁 Excel 다운로드</button>
+                            <button class="btn btn-success" onclick="refreshAllData()">🔄 새로고침</button>
                         </div>
                     </div>
                 </div>
@@ -564,9 +525,69 @@
             </div>
         </div>
     </div>
+    
+    <!-- 상태 표시줄 -->
+    <div id="statusBar" style="
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #34495e;
+        color: white;
+        padding: 8px 15px;
+        font-size: 11px;
+        z-index: 1000;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+        flex-wrap: wrap;
+        gap: 8px;
+    ">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <span id="modeIndicator">🔄 초기화 중...</span>
+            <button onclick="testConnection()" style="
+                background: rgba(255,255,255,0.2); 
+                border: 1px solid rgba(255,255,255,0.3); 
+                color: white; 
+                padding: 3px 6px; 
+                border-radius: 3px; 
+                font-size: 10px; 
+                cursor: pointer;
+            ">연결테스트</button>
+            <button onclick="inspectSheetStructure()" style="
+                background: rgba(255,255,255,0.2); 
+                border: 1px solid rgba(255,255,255,0.3); 
+                color: white; 
+                padding: 3px 6px; 
+                border-radius: 3px; 
+                font-size: 10px; 
+                cursor: pointer;
+            ">구조분석</button>
+            <button onclick="showSheetSetupGuide()" style="
+                background: rgba(255,255,255,0.2); 
+                border: 1px solid rgba(255,255,255,0.3); 
+                color: white; 
+                padding: 3px 6px; 
+                border-radius: 3px; 
+                font-size: 10px; 
+                cursor: pointer;
+            ">설정가이드</button>
+            <button onclick="openGoogleSheet()" style="
+                background: rgba(255,255,255,0.2); 
+                border: 1px solid rgba(255,255,255,0.3); 
+                color: white; 
+                padding: 3px 6px; 
+                border-radius: 3px; 
+                font-size: 10px; 
+                cursor: pointer;
+            ">시트열기</button>
+        </div>
+        <span id="dataCount" style="font-size: 10px;">건물: 0 | 고객: 0 | 이력: 0</span>
+    </div>
 
     <script>
-        // 구글 시트 API 설정
+        // 전역 변수
         const API_KEY = 'AIzaSyD0tH5ebOAlUMnGrrLKdLAM3EzIuDAfPcA';
         const SHEET_ID = '1bFfjjg_Rn0VUx2JTFuaoJtG9WbxmQJiqPhKF4q9YDxg';
         
@@ -574,9 +595,9 @@
         let allBuildings = [];
         let waterHistory = [];
         let currentReadings = new Map();
-        let isOnlineMode = false; // 온라인/오프라인 모드 플래그
+        let isOnlineMode = false;
         
-        // 개발용 더미 데이터
+        // 더미 데이터
         const DUMMY_BUILDINGS = [
             { id: '1', name: '더원빌딩A', address: '서울시 강남구', total_units: 10, water_billing_method: '톤수분할', base_management_fee: 50000 },
             { id: '2', name: '더원빌딩B', address: '서울시 서초구', total_units: 12, water_billing_method: '톤수분할', base_management_fee: 60000 }
@@ -594,7 +615,8 @@
             { input_date: '2024-07-01', reading_month: '2024-06', building_name: '더원빌딩A', room_number: '101', prev_reading: 120, curr_reading: 135, usage_tons: 15.0, water_fee: 45000, total_bill: 300000, timestamp: '2024-07-01T09:00:00Z' },
             { input_date: '2024-07-01', reading_month: '2024-06', building_name: '더원빌딩A', room_number: '102', prev_reading: 110, curr_reading: 122, usage_tons: 12.0, water_fee: 36000, total_bill: 300000, timestamp: '2024-07-01T09:01:00Z' },
             { input_date: '2024-07-01', reading_month: '2024-06', building_name: '더원빌딩A', room_number: '103', prev_reading: 95, curr_reading: 108, usage_tons: 13.0, water_fee: 39000, total_bill: 300000, timestamp: '2024-07-01T09:02:00Z' },
-            { input_date: '2024-07-01', reading_month: '2024-05', building_name: '더원빌딩A', room_number: '101', prev_reading: 105, curr_reading: 120, usage_tons: 15.0, water_fee: 42000, total_bill: 280000, timestamp: '2024-06-01T09:00:00Z' }
+            { input_date: '2024-06-01', reading_month: '2024-05', building_name: '더원빌딩A', room_number: '101', prev_reading: 105, curr_reading: 120, usage_tons: 15.0, water_fee: 42000, total_bill: 280000, timestamp: '2024-06-01T09:00:00Z' },
+            { input_date: '2024-06-01', reading_month: '2024-05', building_name: '더원빌딩B', room_number: '201', prev_reading: 88, curr_reading: 98, usage_tons: 10.0, water_fee: 28000, total_bill: 280000, timestamp: '2024-06-01T09:01:00Z' }
         ];
         
         // 페이지 로드 시 실행
@@ -604,36 +626,51 @@
             setupEventListeners();
         });
         
-        // 이벤트 리스너 설정
-        function setupEventListeners() {
-            // 건물 변경 시 세대 목록 업데이트
-            document.getElementById('historyBuilding').addEventListener('change', function() {
-                updateRoomOptions(this.value, 'historyRoom');
-            });
-            
-            // 검침값 입력 시 자동 계산
-            ['totalBillAmount'].forEach(id => {
-                document.getElementById(id).addEventListener('input', calculateTotals);
-            });
-        }
-        
-        // 데이터 초기화
+        // 데이터 초기화 (연결 실패 시 가이드 표시)
         async function initializeData() {
             try {
-                // Google Sheets API 연결 시도
                 await loadBuildings();
                 await loadCustomers();
                 await loadWaterHistory();
                 isOnlineMode = true;
-                showSuccessMessage('온라인 모드: Google Sheets 연결 성공');
+                showSuccessMessage('✅ Google Sheets 연결 성공! 실제 데이터를 사용합니다.');
+                console.log('🌐 온라인 모드 활성화');
             } catch (error) {
-                console.warn('Google Sheets 연결 실패, 개발 모드로 전환:', error);
+                console.warn('❌ Google Sheets 연결 실패, 개발 모드로 전환:', error);
+                
                 // 더미 데이터 사용
                 allBuildings = [...DUMMY_BUILDINGS];
                 allCustomers = [...DUMMY_CUSTOMERS];
                 waterHistory = [...DUMMY_HISTORY];
                 isOnlineMode = false;
-                showWarningMessage('개발 모드: 더미 데이터 사용 중 (Google Sheets 연결 불가)');
+                
+                // 연결 실패 원인에 따른 메시지
+                let warningMessage = '⚠️ Google Sheets 연결 실패 - 개발 모드로 전환됩니다.';
+                let showGuide = false;
+                
+                if (error.message.includes('403') || error.message.includes('권한')) {
+                    warningMessage += '\n\n🔒 시트 접근 권한이 없습니다.';
+                    showGuide = true;
+                } else if (error.message.includes('404') || error.message.includes('찾을 수 없')) {
+                    warningMessage += '\n\n📋 시트를 찾을 수 없습니다.';
+                    showGuide = true;
+                } else if (error.message.includes('API')) {
+                    warningMessage += '\n\n🔑 API 키 문제일 수 있습니다.';
+                    showGuide = true;
+                }
+                
+                showWarningMessage(warningMessage);
+                
+                // 3초 후 설정 가이드 자동 표시
+                if (showGuide) {
+                    setTimeout(() => {
+                        if (confirm('Google Sheets 설정 가이드를 보시겠습니까?\n\n시트 권한 설정과 구조를 확인할 수 있습니다.')) {
+                            showSheetSetupGuide();
+                        }
+                    }, 3000);
+                }
+                
+                console.log('🔧 개발 모드 활성화 - 더미 데이터 사용');
             }
             
             updateBuildingSelects();
@@ -641,7 +678,251 @@
             hideLoadingMessage();
         }
         
-        // 상태 바 업데이트
+        // 개선된 Google Sheets API 호출 (실제 시트 구조에 맞춤)
+        async function loadBuildings() {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/buildings!A:Z?key=${API_KEY}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`건물 데이터 로드 실패: HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('📊 건물 시트 원본 데이터:', data);
+            
+            if (!data.values || data.values.length === 0) {
+                throw new Error('건물 시트가 비어있습니다.');
+            }
+            
+            // 헤더 확인 및 데이터 파싱
+            const headers = data.values[0];
+            const rows = data.values.slice(1);
+            
+            console.log('📋 건물 시트 헤더:', headers);
+            console.log('📊 건물 데이터 행 수:', rows.length);
+            
+            allBuildings = rows.filter(row => row && row.length > 0 && row[0]).map((row, index) => {
+                try {
+                    return {
+                        id: String(row[0] || index + 1),
+                        name: String(row[1] || ''),
+                        address: String(row[2] || ''),
+                        total_units: parseInt(row[3]) || 0,
+                        water_billing_method: String(row[4] || '톤수분할'),
+                        base_management_fee: parseInt(row[5]) || 0
+                    };
+                } catch (error) {
+                    console.warn(`건물 데이터 파싱 오류 (행 ${index + 2}):`, error, row);
+                    return null;
+                }
+            }).filter(building => building && building.name);
+            
+            console.log('✅ 파싱된 건물 데이터:', allBuildings);
+            
+            if (allBuildings.length === 0) {
+                throw new Error('유효한 건물 데이터가 없습니다.');
+            }
+        }
+        
+        async function loadCustomers() {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/customers!A:Z?key=${API_KEY}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`고객 데이터 로드 실패: HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('📊 고객 시트 원본 데이터:', data);
+            
+            if (!data.values || data.values.length === 0) {
+                console.warn('고객 시트가 비어있습니다.');
+                allCustomers = [];
+                return;
+            }
+            
+            // 헤더 확인 및 데이터 파싱
+            const headers = data.values[0];
+            const rows = data.values.slice(1);
+            
+            console.log('📋 고객 시트 헤더:', headers);
+            console.log('📊 고객 데이터 행 수:', rows.length);
+            
+            allCustomers = rows.filter(row => row && row.length > 0 && row[0]).map((row, index) => {
+                try {
+                    // 상태 확인 (8번째 컬럼 또는 비어있으면 거주중으로 간주)
+                    const status = String(row[8] || '').trim();
+                    const isActive = !status || status === '거주중' || status === '입주';
+                    
+                    if (!isActive) {
+                        return null; // 거주중이 아닌 고객은 제외
+                    }
+                    
+                    return {
+                        id: String(row[0] || index + 1),
+                        name: String(row[1] || ''),
+                        phone: String(row[2] || ''),
+                        email: String(row[3] || ''),
+                        building_name: String(row[4] || ''),
+                        room_number: String(row[5] || ''),
+                        move_in_date: String(row[6] || ''),
+                        deposit: parseInt(row[7]) || 0,
+                        status: status || '거주중'
+                    };
+                } catch (error) {
+                    console.warn(`고객 데이터 파싱 오류 (행 ${index + 2}):`, error, row);
+                    return null;
+                }
+            }).filter(customer => customer && customer.name && customer.building_name && customer.room_number);
+            
+            console.log('✅ 파싱된 고객 데이터:', allCustomers);
+        }
+        
+        async function loadWaterHistory() {
+            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/water_history!A:Z?key=${API_KEY}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`수도 이력 로드 실패: HTTP ${response.status}`);
+            }
+            
+            const data = await response.json();
+            console.log('📊 수도 이력 시트 원본 데이터:', data);
+            
+            if (!data.values || data.values.length === 0) {
+                console.warn('수도 이력 시트가 비어있습니다.');
+                waterHistory = [];
+                return;
+            }
+            
+            // 헤더 확인 및 데이터 파싱
+            const headers = data.values[0];
+            const rows = data.values.slice(1);
+            
+            console.log('📋 수도 이력 시트 헤더:', headers);
+            console.log('📊 수도 이력 데이터 행 수:', rows.length);
+            
+            waterHistory = rows.filter(row => row && row.length > 0 && row[0]).map((row, index) => {
+                try {
+                    return {
+                        input_date: String(row[0] || ''),
+                        reading_month: String(row[1] || ''),
+                        building_name: String(row[2] || ''),
+                        room_number: String(row[3] || ''),
+                        prev_reading: parseFloat(row[4]) || 0,
+                        curr_reading: parseFloat(row[5]) || 0,
+                        usage_tons: parseFloat(row[6]) || 0,
+                        water_fee: parseInt(row[7]) || 0,
+                        total_bill: parseInt(row[8]) || 0,
+                        timestamp: String(row[9] || '')
+                    };
+                } catch (error) {
+                    console.warn(`수도 이력 파싱 오류 (행 ${index + 2}):`, error, row);
+                    return null;
+                }
+            }).filter(history => history && history.input_date && history.building_name);
+            
+            console.log('✅ 파싱된 수도 이력 데이터:', waterHistory);
+        }
+        
+        // 개선된 Google Sheets 저장
+        async function saveToGoogleSheets(dataToSave) {
+            try {
+                console.log('💾 Google Sheets 저장 시작:', dataToSave);
+                
+                // 데이터를 시트 형식으로 변환
+                const values = dataToSave.map(item => [
+                    item.input_date,
+                    item.reading_month,
+                    item.building_name,
+                    item.room_number,
+                    item.prev_reading,
+                    item.curr_reading,
+                    item.usage_tons,
+                    item.water_fee,
+                    item.total_bill,
+                    item.timestamp
+                ]);
+                
+                const requestBody = {
+                    values: values,
+                    majorDimension: 'ROWS'
+                };
+                
+                console.log('📊 저장할 데이터 형식:', requestBody);
+                
+                // Google Sheets API 호출
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/water_history!A:J:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS&key=${API_KEY}`;
+                
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('📡 API 응답 상태:', response.status, response.statusText);
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    console.error('❌ API 오류 상세:', errorData);
+                    throw new Error(`Google Sheets 저장 실패: ${response.status} - ${errorData.error?.message || '알 수 없는 오류'}`);
+                }
+                
+                const result = await response.json();
+                console.log('✅ Google Sheets 저장 성공:', result);
+                
+                // 로컬 waterHistory 업데이트
+                dataToSave.forEach(item => {
+                    waterHistory.push(item);
+                });
+                
+                // 상태 업데이트
+                updateStatusBar();
+                
+                return result;
+                
+            } catch (error) {
+                console.error('💾 Google Sheets 저장 오류:', error);
+                
+                // 구체적인 오류 메시지 제공
+                if (error.message.includes('403')) {
+                    throw new Error('시트 접근 권한이 없습니다. 시트를 공개로 설정하거나 편집 권한을 확인하세요.');
+                } else if (error.message.includes('404')) {
+                    throw new Error('시트를 찾을 수 없습니다. 시트 ID와 시트명을 확인하세요.');
+                } else if (error.message.includes('400')) {
+                    throw new Error('잘못된 데이터 형식입니다. 시트 구조를 확인하세요.');
+                } else {
+                    throw error;
+                }
+            }
+        }
+        
+        // UI 업데이트 함수들
+        function updateBuildingSelects() {
+            const selects = ['readingBuilding', 'historyBuilding'];
+            
+            selects.forEach(selectId => {
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                
+                const currentValue = select.value;
+                select.innerHTML = selectId === 'historyBuilding' ? 
+                    '<option value="">전체 건물</option>' : 
+                    '<option value="">건물을 선택하세요</option>';
+                
+                allBuildings.forEach(building => {
+                    const option = document.createElement('option');
+                    option.value = building.name;
+                    option.textContent = building.name;
+                    select.appendChild(option);
+                });
+                
+                select.value = currentValue;
+            });
+        }
+        
         function updateStatusBar() {
             const modeIndicator = document.getElementById('modeIndicator');
             const dataCount = document.getElementById('dataCount');
@@ -661,230 +942,20 @@
             }
         }
         
-        // 로딩 메시지 표시
-        function showLoadingMessage() {
-            const message = document.createElement('div');
-            message.id = 'loadingMessage';
-            message.style.cssText = `
-                position: fixed;
-                top: 70px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: #3498db;
-                color: white;
-                padding: 15px 30px;
-                border-radius: 8px;
-                z-index: 9999;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-            `;
-            message.innerHTML = '🔄 데이터를 불러오는 중...';
-            document.body.appendChild(message);
-        }
-        
-        // 로딩 메시지 숨기기
-        function hideLoadingMessage() {
-            const message = document.getElementById('loadingMessage');
-            if (message) {
-                message.remove();
-            }
-        }
-        
-        // 성공 메시지 표시
-        function showSuccessMessage(text) {
-            showMessage(text, '#27ae60');
-        }
-        
-        // 경고 메시지 표시
-        function showWarningMessage(text) {
-            showMessage(text, '#f39c12');
-        }
-        
-        // 에러 메시지 표시
-        function showErrorMessage(text) {
-            showMessage(text, '#e74c3c');
-        }
-        
-        // 메시지 표시 공통 함수
-        function showMessage(text, color) {
-            // 기존 메시지 제거
-            const existingMessage = document.getElementById('statusMessage');
-            if (existingMessage) {
-                existingMessage.remove();
-            }
-            
-            const message = document.createElement('div');
-            message.id = 'statusMessage';
-            message.style.cssText = `
-                position: fixed;
-                top: 70px;
-                left: 50%;
-                transform: translateX(-50%);
-                background: ${color};
-                color: white;
-                padding: 12px 25px;
-                border-radius: 6px;
-                z-index: 9999;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                font-size: 14px;
-                max-width: 90%;
-                text-align: center;
-            `;
-            message.innerHTML = text;
-            document.body.appendChild(message);
-            
-            // 5초 후 자동 제거
-            setTimeout(() => {
-                if (message.parentNode) {
-                    message.remove();
-                }
-            }, 5000);
-        }
-            // 모든 탭 버튼과 컨텐츠 비활성화
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-            
-            // 선택된 탭 활성화
-            event.target.classList.add('active');
-            document.getElementById(tabName).classList.add('active');
-        }
-        
-        // 건물 목록 로드
-        async function loadBuildings() {
-            try {
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/buildings!A:G?key=${API_KEY}`;
-                console.log('건물 데이터 요청:', url);
-                
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                console.log('건물 데이터 응답:', data);
-                
-                if (data.values && data.values.length > 1) {
-                    allBuildings = data.values.slice(1).map(row => ({
-                        id: row[0] || '',
-                        name: row[1] || '',
-                        address: row[2] || '',
-                        total_units: parseInt(row[3]) || 0,
-                        water_billing_method: row[4] || '톤수분할',
-                        base_management_fee: parseInt(row[5]) || 0
-                    }));
-                    console.log('로드된 건물 수:', allBuildings.length);
-                } else {
-                    throw new Error('건물 데이터가 비어있습니다.');
-                }
-            } catch (error) {
-                console.error('건물 목록 로드 상세 오류:', error);
-                throw error;
-            }
-        }
-        
-        // 고객 목록 로드
-        async function loadCustomers() {
-            try {
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/customers!A:K?key=${API_KEY}`;
-                console.log('고객 데이터 요청:', url);
-                
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                console.log('고객 데이터 응답:', data);
-                
-                if (data.values && data.values.length > 1) {
-                    allCustomers = data.values.slice(1)
-                        .filter(row => row[8] === '거주중' || !row[8]) // 상태가 비어있어도 포함
-                        .map(row => ({
-                            id: row[0] || '',
-                            name: row[1] || '',
-                            phone: row[2] || '',
-                            building_name: row[4] || '',
-                            room_number: row[5] || ''
-                        }));
-                    console.log('로드된 고객 수:', allCustomers.length);
-                } else {
-                    console.warn('고객 데이터가 비어있거나 형식이 잘못되었습니다.');
-                    allCustomers = [];
-                }
-            } catch (error) {
-                console.error('고객 목록 로드 상세 오류:', error);
-                throw error;
-            }
-        }
-        
-        // 수도 이력 로드
-        async function loadWaterHistory() {
-            try {
-                const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/water_history!A:J?key=${API_KEY}`;
-                console.log('수도 이력 데이터 요청:', url);
-                
-                const response = await fetch(url);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                console.log('수도 이력 데이터 응답:', data);
-                
-                if (data.values && data.values.length > 1) {
-                    waterHistory = data.values.slice(1).map(row => ({
-                        input_date: row[0] || '',
-                        reading_month: row[1] || '',
-                        building_name: row[2] || '',
-                        room_number: row[3] || '',
-                        prev_reading: parseInt(row[4]) || 0,
-                        curr_reading: parseInt(row[5]) || 0,
-                        usage_tons: parseFloat(row[6]) || 0,
-                        water_fee: parseInt(row[7]) || 0,
-                        total_bill: parseInt(row[8]) || 0,
-                        timestamp: row[9] || ''
-                    }));
-                    console.log('로드된 수도 이력 수:', waterHistory.length);
-                } else {
-                    console.warn('수도 이력 데이터가 비어있거나 형식이 잘못되었습니다.');
-                    waterHistory = [];
-                }
-            } catch (error) {
-                console.error('수도 이력 로드 상세 오류:', error);
-                throw error;
-            }
-        }
-        
-        
-        // 건물 드롭다운 업데이트
-        function updateBuildingSelects() {
-            const selects = ['readingBuilding', 'historyBuilding'];
-            
-            selects.forEach(selectId => {
-                const select = document.getElementById(selectId);
-                if (!select) return;
-                
-                const currentValue = select.value;
-                
-                select.innerHTML = selectId === 'historyBuilding' ? 
-                    '<option value="">전체 건물</option>' : 
-                    '<option value="">건물을 선택하세요</option>';
-                
-                allBuildings.forEach(building => {
-                    const option = document.createElement('option');
-                    option.value = building.name;
-                    option.textContent = building.name;
-                    select.appendChild(option);
+        function setupEventListeners() {
+            const historyBuilding = document.getElementById('historyBuilding');
+            if (historyBuilding) {
+                historyBuilding.addEventListener('change', function() {
+                    updateRoomOptions(this.value, 'historyRoom');
                 });
-                
-                select.value = currentValue;
-            });
+            }
+            
+            const totalBillAmount = document.getElementById('totalBillAmount');
+            if (totalBillAmount) {
+                totalBillAmount.addEventListener('input', calculateTotals);
+            }
         }
         
-        // 탭 전환
-        function switchTab(tabName) {
         function updateRoomOptions(buildingName, selectId) {
             const select = document.getElementById(selectId);
             select.innerHTML = '<option value="">전체 세대</option>';
@@ -900,7 +971,223 @@
             }
         }
         
-        // 검침 대상 세대 불러오기
+        // 데이터 새로고침 기능
+        async function refreshAllData() {
+            showLoadingMessage('전체 데이터를 새로고침하는 중...');
+            
+            try {
+                // 기존 데이터 초기화
+                allBuildings = [];
+                allCustomers = [];
+                waterHistory = [];
+                currentReadings.clear();
+                
+                // 데이터 다시 로드
+                await loadBuildings();
+                await loadCustomers();  
+                await loadWaterHistory();
+                
+                // UI 업데이트
+                updateBuildingSelects();
+                updateStatusBar();
+                
+                // 검침 화면 초기화
+                const grid = document.getElementById('customerReadingGrid');
+                if (grid) {
+                    grid.innerHTML = '<div class="no-data">건물을 선택하고 \'세대 불러오기\' 버튼을 클릭하세요.</div>';
+                }
+                
+                // 계산 필드 초기화
+                document.getElementById('totalBillAmount').value = '';
+                document.getElementById('totalUsageTons').value = '';
+                document.getElementById('pricePerTon').value = '';
+                
+                const summaryDiv = document.getElementById('calculationSummary');
+                if (summaryDiv) {
+                    summaryDiv.style.display = 'none';
+                }
+                
+                hideLoadingMessage();
+                showSuccessMessage('✅ 모든 데이터가 성공적으로 새로고침되었습니다!');
+                
+                console.log('데이터 새로고침 완료:', {
+                    buildings: allBuildings.length,
+                    customers: allCustomers.length,  
+                    history: waterHistory.length
+                });
+                
+            } catch (error) {
+                hideLoadingMessage();
+                console.error('데이터 새로고침 오류:', error);
+                showErrorMessage('데이터 새로고침 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+        
+        // 시트 권한 및 설정 가이드
+        function showSheetSetupGuide() {
+            const guideHtml = `
+                <div style="background: white; padding: 30px; border-radius: 10px; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #2c3e50; margin-bottom: 20px;">📋 Google Sheets 설정 가이드</h2>
+                    
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="color: #34495e; margin-bottom: 10px;">1️⃣ 시트 공개 설정</h3>
+                        <ol style="line-height: 1.6; color: #666;">
+                            <li>Google Sheets에서 우측 상단 <strong>"공유"</strong> 버튼 클릭</li>
+                            <li><strong>"링크가 있는 모든 사용자"</strong> 선택</li>
+                            <li>권한을 <strong>"뷰어"</strong> 또는 <strong>"편집자"</strong>로 설정</li>
+                            <li><strong>"링크 복사"</strong> 클릭</li>
+                        </ol>
+                    </div>
+                    
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="color: #34495e; margin-bottom: 10px;">2️⃣ 필요한 시트 생성</h3>
+                        <ul style="line-height: 1.6; color: #666;">
+                            <li><strong>buildings</strong>: 건물 정보 (id, name, address, total_units, water_billing_method, base_management_fee)</li>
+                            <li><strong>customers</strong>: 고객 정보 (id, name, phone, email, building_name, room_number, move_in_date, deposit, status)</li>
+                            <li><strong>water_history</strong>: 수도 이력 (input_date, reading_month, building_name, room_number, prev_reading, curr_reading, usage_tons, water_fee, total_bill, timestamp)</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="color: #34495e; margin-bottom: 10px;">3️⃣ 현재 시트 정보</h3>
+                        <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; font-family: monospace; font-size: 12px;">
+                            <strong>시트 ID:</strong> ${SHEET_ID}<br>
+                            <strong>API 키:</strong> ${API_KEY.substring(0, 10)}...<br>
+                            <strong>시트 URL:</strong> <a href="https://docs.google.com/spreadsheets/d/${SHEET_ID}" target="_blank" style="color: #3498db;">시트 열기</a>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 25px;">
+                        <h3 style="color: #34495e; margin-bottom: 10px;">4️⃣ 문제 해결</h3>
+                        <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #f39c12;">
+                            <strong>자주 발생하는 문제:</strong><br>
+                            • <strong>403 오류:</strong> 시트가 비공개로 설정됨 → 공유 설정 확인<br>
+                            • <strong>404 오류:</strong> 시트 ID가 잘못됨 → URL 확인<br>
+                            • <strong>빈 데이터:</strong> 시트명이 다름 → buildings, customers, water_history 확인<br>
+                            • <strong>API 오류:</strong> 할당량 초과 → 잠시 후 다시 시도
+                        </div>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 20px;">
+                        <button onclick="testConnection()" style="
+                            background: #27ae60; color: white; border: none; padding: 12px 24px;
+                            border-radius: 6px; font-size: 14px; cursor: pointer; margin-right: 10px;
+                        ">🔄 연결 테스트</button>
+                        <button onclick="closeSheetGuide()" style="
+                            background: #95a5a6; color: white; border: none; padding: 12px 24px;
+                            border-radius: 6px; font-size: 14px; cursor: pointer;
+                        ">닫기</button>
+                    </div>
+                </div>
+            `;
+            
+            showCustomModal('Google Sheets 설정 가이드', guideHtml);
+        }
+        
+        function closeSheetGuide() {
+            hideCustomModal();
+        }
+        
+        // 커스텀 모달 함수
+        function showCustomModal(title, content) {
+            // 기존 모달 제거
+            const existingModal = document.getElementById('customModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            const modal = document.createElement('div');
+            modal.id = 'customModal';
+            modal.style.cssText = `
+                position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                background: rgba(0,0,0,0.5); z-index: 10001; display: flex;
+                justify-content: center; align-items: center; padding: 20px;
+            `;
+            
+            modal.innerHTML = `
+                <div style="background: white; border-radius: 10px; max-width: 90%; max-height: 90%; overflow-y: auto;">
+                    <div style="background: #34495e; color: white; padding: 20px; border-radius: 10px 10px 0 0;">
+                        <h2 style="margin: 0;">${title}</h2>
+                    </div>
+                    <div style="padding: 20px;">
+                        ${content}
+                    </div>
+                </div>
+            `;
+            
+            // 모달 외부 클릭 시 닫기
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    hideCustomModal();
+                }
+            });
+            
+            document.body.appendChild(modal);
+        }
+        
+        function hideCustomModal() {
+            const modal = document.getElementById('customModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+        
+        // Google Sheet 직접 열기
+        function openGoogleSheet() {
+            const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}`;
+            window.open(url, '_blank');
+            showSuccessMessage('📊 Google Sheets가 새 탭에서 열렸습니다!');
+        }
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+            
+            // 탭 전환 시 필요한 초기화 작업
+            if (tabName === 'history') {
+                // 이력 탭으로 전환 시 건물 옵션 업데이트
+                updateBuildingSelects();
+            } else if (tabName === 'statistics') {
+                // 통계 탭으로 전환 시 데이터 확인
+                if (waterHistory.length === 0) {
+                    document.getElementById('statisticsContent').innerHTML = `
+                        <div class="no-data">
+                            아직 수도 이용내역이 없습니다.<br>
+                            먼저 검침입력 탭에서 데이터를 입력해주세요.
+                        </div>
+                    `;
+                }
+            }
+        }
+            showLoadingMessage('Google Sheets 연결을 테스트하는 중...');
+            
+            try {
+                const testUrl = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}?key=${API_KEY}`;
+                const response = await fetch(testUrl);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    hideLoadingMessage();
+                    showSuccessMessage(`✅ Google Sheets 연결 성공!\n시트명: ${data.properties?.title || '알 수 없음'}`);
+                    return true;
+                } else {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+            } catch (error) {
+                hideLoadingMessage();
+                showErrorMessage(`❌ Google Sheets 연결 실패: ${error.message}`);
+                return false;
+            }
+        }
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            event.target.classList.add('active');
+            document.getElementById(tabName).classList.add('active');
+        }
+        
+        // 검침 관련 함수들
         function loadCustomersForReading() {
             const building = document.getElementById('readingBuilding').value;
             const month = document.getElementById('readingMonth').value;
@@ -917,7 +1204,19 @@
                 return;
             }
             
-            // 이전 검침값 조회
+            // 기존 검침 데이터 초기화
+            currentReadings.clear();
+            
+            // 계산 요약 숨기기
+            const summaryDiv = document.getElementById('calculationSummary');
+            if (summaryDiv) {
+                summaryDiv.style.display = 'none';
+            }
+            
+            // 총 사용량, 톤당 단가 초기화
+            document.getElementById('totalUsageTons').value = '';
+            document.getElementById('pricePerTon').value = '';
+            
             const prevMonth = getPrevMonth(month);
             const prevReadings = waterHistory.filter(h => 
                 h.building_name === building && h.reading_month === prevMonth
@@ -932,42 +1231,54 @@
                     <div class="reading-input-card">
                         <h4>${customer.name} (${customer.room_number})</h4>
                         <div class="reading-input-row">
-                            <div>
+                            <div class="reading-input-item">
                                 <label>전월검침</label>
-                                <input type="number" 
-                                       value="${prevValue}"
-                                       data-customer-id="${customer.id}"
-                                       data-room="${customer.room_number}"
-                                       data-type="prev"
-                                       onchange="updateUsage(this)">
+                                <input type="number" value="${prevValue}"
+                                       data-customer-id="${customer.id}" data-room="${customer.room_number}"
+                                       data-type="prev" onchange="updateUsage(this)"
+                                       placeholder="0" step="0.1">
                             </div>
-                            <div>
+                            <div class="reading-input-item">
                                 <label>당월검침</label>
-                                <input type="number" 
-                                       data-customer-id="${customer.id}"
-                                       data-room="${customer.room_number}"
-                                       data-type="curr"
-                                       onchange="updateUsage(this)">
+                                <input type="number" data-customer-id="${customer.id}"
+                                       data-room="${customer.room_number}" data-type="curr"
+                                       onchange="updateUsage(this)"
+                                       placeholder="0" step="0.1">
                             </div>
-                            <div>
-                                <label>사용량(톤)</label>
-                                <div class="usage-display" id="usage-${customer.id}">0.0</div>
+                            <div class="reading-input-item">
+                                <label>사용량</label>
+                                <div class="usage-display" id="usage-${customer.id}">0.0톤</div>
                             </div>
                         </div>
                     </div>
                 `;
             }).join('');
             
+            // 모든 세대에 대해 빈 currentReadings 엔트리 생성
+            buildingCustomers.forEach(customer => {
+                const prevReading = prevReadings.find(r => r.room_number === customer.room_number);
+                const prevValue = prevReading ? prevReading.curr_reading : 0;
+                
+                currentReadings.set(customer.id, {
+                    customerId: customer.id,
+                    roomNumber: customer.room_number,
+                    prevReading: prevValue,
+                    currReading: 0,
+                    usage: 0
+                });
+            });
+            
             updateProgress();
+            console.log(`${building} 건물의 ${buildingCustomers.length}개 세대 검침 준비 완료`);
         }
         
-        // 사용량 업데이트
         function updateUsage(input) {
             const customerId = input.dataset.customerId;
             const roomNumber = input.dataset.room;
             const type = input.dataset.type;
-            const value = parseInt(input.value) || 0;
+            const value = parseFloat(input.value) || 0; // parseFloat 사용
             
+            // currentReadings에 해당 고객 정보가 없으면 초기화
             if (!currentReadings.has(customerId)) {
                 currentReadings.set(customerId, {
                     customerId: customerId,
@@ -979,57 +1290,168 @@
             }
             
             const reading = currentReadings.get(customerId);
-            reading[type === 'prev' ? 'prevReading' : 'currReading'] = value;
+            
+            // 전월검침 또는 당월검침 값 업데이트
+            if (type === 'prev') {
+                reading.prevReading = value;
+            } else if (type === 'curr') {
+                reading.currReading = value;
+            }
+            
+            // 사용량 계산: 당월검침 - 전월검침 (음수 방지)
             reading.usage = Math.max(0, reading.currReading - reading.prevReading);
             
-            // 사용량 표시 업데이트
-            document.getElementById(`usage-${customerId}`).textContent = reading.usage.toFixed(1);
+            // 개별 세대 사용량 표시 업데이트
+            const usageElement = document.getElementById(`usage-${customerId}`);
+            if (usageElement) {
+                usageElement.textContent = reading.usage.toFixed(1) + '톤';
+            }
             
-            // 전체 계산 업데이트
+            // 건물 전체 계산 업데이트
             calculateTotals();
             updateProgress();
+            
+            // 디버깅 로그
+            console.log(`${roomNumber}: 전월=${reading.prevReading}, 당월=${reading.currReading}, 사용량=${reading.usage.toFixed(1)}톤`);
         }
         
-        // 전체 계산
         function calculateTotals() {
             let totalUsage = 0;
-            currentReadings.forEach(reading => {
-                totalUsage += reading.usage;
+            let validReadings = 0;
+            let usageDetails = [];
+            
+            // 각 세대의 사용량 합계 계산
+            currentReadings.forEach((reading, customerId) => {
+                // 사용량이 계산된 세대만 포함
+                if (reading.usage > 0 || (reading.currReading > 0 && reading.prevReading >= 0)) {
+                    totalUsage += reading.usage;
+                    validReadings++;
+                    usageDetails.push(`${reading.roomNumber}: ${reading.usage.toFixed(1)}톤`);
+                }
             });
             
-            const totalBill = parseInt(document.getElementById('totalBillAmount').value) || 0;
+            // 건물 총 청구요금
+            const totalBill = parseFloat(document.getElementById('totalBillAmount').value) || 0;
+            
+            // 톤당 단가 계산
             const pricePerTon = totalUsage > 0 ? Math.round(totalBill / totalUsage) : 0;
             
-            document.getElementById('totalUsageTons').value = totalUsage.toFixed(1);
-            document.getElementById('pricePerTon').value = pricePerTon;
+            // UI 업데이트
+            const totalUsageElement = document.getElementById('totalUsageTons');
+            const pricePerTonElement = document.getElementById('pricePerTon');
+            
+            if (totalUsageElement) {
+                totalUsageElement.value = totalUsage.toFixed(1);
+            }
+            if (pricePerTonElement) {
+                pricePerTonElement.value = pricePerTon;
+            }
+            
+            // 계산 요약 정보 업데이트
+            updateCalculationSummary(totalUsage, totalBill, pricePerTon, usageDetails, validReadings);
+            
+            // 상세 디버깅 로그
+            console.log(`=== 계산 결과 ===`);
+            console.log(`유효한 세대 수: ${validReadings}개`);
+            console.log(`건물 총 사용량: ${totalUsage.toFixed(1)}톤`);
+            console.log(`총 청구요금: ${totalBill.toLocaleString()}원`);
+            console.log(`톤당 단가: ${pricePerTon.toLocaleString()}원`);
+            if (usageDetails.length > 0) {
+                console.log(`세대별 사용량: ${usageDetails.join(', ')}`);
+            }
         }
         
-        // 진행상황 업데이트
+        function updateCalculationSummary(totalUsage, totalBill, pricePerTon, usageDetails, validReadings) {
+            const summaryDiv = document.getElementById('calculationSummary');
+            const detailsDiv = document.getElementById('summaryDetails');
+            
+            if (totalUsage > 0 || totalBill > 0) {
+                const html = `
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;">
+                        <div>
+                            <strong>🏠 검침 완료 세대:</strong> ${validReadings}개<br>
+                            <strong>💧 총 사용량:</strong> ${totalUsage.toFixed(1)}톤<br>
+                            <strong>💰 총 청구요금:</strong> ${formatCurrency(totalBill)}
+                        </div>
+                        <div>
+                            <strong>🔢 톤당 단가:</strong> ${formatCurrency(pricePerTon)}<br>
+                            <strong>📝 계산식:</strong> ${formatCurrency(totalBill)} ÷ ${totalUsage.toFixed(1)}톤<br>
+                            <strong>✅ 상태:</strong> ${totalUsage > 0 && totalBill > 0 ? '계산 완료' : '입력 대기 중'}
+                        </div>
+                    </div>
+                    ${usageDetails.length > 0 ? `
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #ddd;">
+                            <strong>📊 세대별 사용량 상세:</strong><br>
+                            <div style="margin-top: 8px; font-size: 13px; color: #666; line-height: 1.4;">
+                                ${usageDetails.join(' | ')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    ${totalUsage > 0 && totalBill > 0 ? `
+                        <div style="margin-top: 15px; padding: 10px; background: #f0f9ff; border-radius: 6px; border-left: 4px solid #3498db;">
+                            <strong>💡 계산 공식:</strong> 세대별 수도요금 = (당월검침 - 전월검침) × ${formatCurrency(pricePerTon)}
+                        </div>
+                    ` : ''}
+                `;
+                
+                detailsDiv.innerHTML = html;
+                summaryDiv.style.display = 'block';
+            } else {
+                summaryDiv.style.display = 'none';
+            }
+        }
+        
         function updateProgress() {
             const total = currentReadings.size;
             let completed = 0;
+            let totalUsage = 0;
             
             currentReadings.forEach(reading => {
-                if (reading.currReading > 0) completed++;
+                if (reading.currReading > 0) {
+                    completed++;
+                }
+                totalUsage += reading.usage;
             });
             
-            document.getElementById('readingProgress').textContent = `${completed}/${total} 입력완료`;
+            const progressElement = document.getElementById('readingProgress');
+            if (progressElement) {
+                progressElement.textContent = `${completed}/${total} 입력완료 (총 사용량: ${totalUsage.toFixed(1)}톤)`;
+            }
         }
         
-        // 모든 검침값 저장
         async function saveAllReadings() {
             const building = document.getElementById('readingBuilding').value;
             const month = document.getElementById('readingMonth').value;
-            const totalBill = parseInt(document.getElementById('totalBillAmount').value) || 0;
-            const pricePerTon = parseInt(document.getElementById('pricePerTon').value) || 0;
+            const totalBill = parseFloat(document.getElementById('totalBillAmount').value) || 0;
+            const pricePerTon = parseFloat(document.getElementById('pricePerTon').value) || 0;
             
             if (!building || !month || totalBill === 0) {
-                alert('필수 항목을 모두 입력해주세요.');
+                alert('필수 항목을 모두 입력해주세요.\n- 건물 선택\n- 검침월 설정\n- 총 청구요금 입력');
                 return;
             }
             
             if (currentReadings.size === 0) {
                 alert('검침값을 입력해주세요.');
+                return;
+            }
+            
+            // 유효한 검침 데이터 확인
+            let validReadings = 0;
+            currentReadings.forEach(reading => {
+                if (reading.currReading > 0 && reading.usage > 0) {
+                    validReadings++;
+                }
+            });
+            
+            if (validReadings === 0) {
+                alert('유효한 검침 데이터가 없습니다.\n당월검침값을 입력해주세요.');
+                return;
+            }
+            
+            // 저장 확인
+            const confirmMessage = `${building}의 ${month} 검침 데이터 ${validReadings}건을 저장하시겠습니까?\n\n총 사용량: ${document.getElementById('totalUsageTons').value}톤\n총 청구요금: ${formatCurrency(totalBill)}\n톤당 단가: ${formatCurrency(pricePerTon)}`;
+            
+            if (!confirm(confirmMessage)) {
                 return;
             }
             
@@ -1039,145 +1461,193 @@
             const timestamp = new Date().toISOString();
             
             currentReadings.forEach(reading => {
-                if (reading.currReading > 0) {
+                if (reading.currReading > 0 && reading.usage > 0) {
+                    // 각 세대 수도요금 = 세대 사용량 × 톤당 단가
                     const waterFee = Math.round(reading.usage * pricePerTon);
-                    dataToSave.push([
-                        today, // 입력일자
-                        month, // 검침월
-                        building, // 건물명
-                        reading.roomNumber, // 세대
-                        reading.prevReading, // 전월검침값
-                        reading.currReading, // 당월검침값
-                        reading.usage, // 사용량(톤)
-                        waterFee, // 분배요금
-                        totalBill, // 총청구액
-                        timestamp // 타임스탬프
-                    ]);
+                    dataToSave.push({
+                        input_date: today,
+                        reading_month: month,
+                        building_name: building,
+                        room_number: reading.roomNumber,
+                        prev_reading: reading.prevReading,
+                        curr_reading: reading.currReading,
+                        usage_tons: reading.usage,
+                        water_fee: waterFee,
+                        total_bill: totalBill,
+                        timestamp: timestamp
+                    });
                 }
             });
             
             if (dataToSave.length === 0) {
-                alert('저장할 검침 데이터가 없습니다.');
+                alert('저장할 유효한 검침 데이터가 없습니다.');
                 return;
             }
+            
+            // 저장 진행 상태 표시
+            showLoadingMessage('검침 데이터를 저장하는 중...');
             
             try {
                 if (isOnlineMode) {
                     // 온라인 모드: 실제 Google Sheets에 저장
-                    console.log('온라인 모드: Google Sheets에 저장 시도');
-                    console.log('저장할 데이터:', dataToSave);
+                    console.log('Google Sheets에 저장 시작:', dataToSave);
                     
-                    // 여기에 실제 Google Sheets API 저장 코드 구현
-                    // await saveToGoogleSheets(dataToSave);
+                    await saveToGoogleSheets(dataToSave);
                     
-                    showSuccessMessage(`${building}의 ${month} 검침 데이터 ${dataToSave.length}건이 Google Sheets에 저장되었습니다.`);
+                    hideLoadingMessage();
+                    showSuccessMessage(`✅ ${building}의 ${month} 검침 데이터 ${dataToSave.length}건이 Google Sheets에 저장되었습니다!`);
+                    
+                    // 저장 성공 후 상태 업데이트
+                    updateStatusBar();
+                    
                 } else {
-                    // 오프라인 모드: 로컬 데이터에 추가
+                    // 개발 모드: 로컬 데이터에 추가
                     console.log('개발 모드: 로컬 데이터에 저장');
-                    dataToSave.forEach(row => {
-                        waterHistory.push({
-                            input_date: row[0],
-                            reading_month: row[1],
-                            building_name: row[2],
-                            room_number: row[3],
-                            prev_reading: row[4],
-                            curr_reading: row[5],
-                            usage_tons: row[6],
-                            water_fee: row[7],
-                            total_bill: row[8],
-                            timestamp: row[9]
-                        });
+                    dataToSave.forEach(item => {
+                        waterHistory.push(item);
                     });
                     
-                    showSuccessMessage(`${building}의 ${month} 검침 데이터 ${dataToSave.length}건이 로컬에 저장되었습니다. (개발 모드)`);
+                    hideLoadingMessage();
+                    showSuccessMessage(`💾 ${building}의 ${month} 검침 데이터 ${dataToSave.length}건이 로컬에 저장되었습니다. (개발 모드)`);
                 }
                 
                 // UI 초기화
                 currentReadings.clear();
-                document.getElementById('customerReadingGrid').innerHTML = '<div class="no-data">저장이 완료되었습니다. 새로운 검침을 시작하려면 다시 세대를 불러오세요.</div>';
+                document.getElementById('customerReadingGrid').innerHTML = `
+                    <div style="text-align: center; padding: 40px; background: #f0f9ff; border-radius: 8px; border: 2px dashed #3498db;">
+                        <h3 style="color: #2c3e50; margin-bottom: 10px;">✅ 저장 완료!</h3>
+                        <p style="color: #666; margin-bottom: 15px;">검침 데이터가 성공적으로 저장되었습니다.</p>
+                        <p style="color: #888; font-size: 14px;">새로운 검침을 시작하려면 건물을 선택하고 '세대 불러오기' 버튼을 클릭하세요.</p>
+                    </div>
+                `;
                 document.getElementById('totalBillAmount').value = '';
                 document.getElementById('totalUsageTons').value = '';
                 document.getElementById('pricePerTon').value = '';
+                document.getElementById('calculationSummary').style.display = 'none';
                 updateProgress();
-                updateStatusBar(); // 상태 바 업데이트
+                
+                // 성공 로그
+                console.log(`✅ 저장 완료: ${building} - ${month} (${dataToSave.length}건)`);
+                dataToSave.forEach(item => {
+                    console.log(`   ${item.room_number}: ${item.usage_tons}톤 → ${formatCurrency(item.water_fee)}`);
+                });
                 
             } catch (error) {
+                hideLoadingMessage();
                 console.error('저장 오류:', error);
-                showErrorMessage('저장 중 오류가 발생했습니다: ' + error.message);
+                
+                let errorMessage = '저장 중 오류가 발생했습니다.';
+                if (error.message.includes('API key')) {
+                    errorMessage += '\n\nAPI 키 문제일 수 있습니다. 관리자에게 문의하세요.';
+                } else if (error.message.includes('permission')) {
+                    errorMessage += '\n\n시트 권한 문제일 수 있습니다. 시트가 공개되어 있는지 확인하세요.';
+                } else if (error.message.includes('network') || error.message.includes('fetch')) {
+                    errorMessage += '\n\n네트워크 연결을 확인하세요.';
+                }
+                
+                showErrorMessage(errorMessage);
+                alert(errorMessage + '\n\n자세한 오류 내용은 개발자 도구 콘솔을 확인하세요.');
             }
         }
         
-        // 이력 조회
-        function loadHistory() {
-            const startMonth = document.getElementById('historyStartMonth').value;
-            const endMonth = document.getElementById('historyEndMonth').value;
-            const building = document.getElementById('historyBuilding').value;
-            const room = document.getElementById('historyRoom').value;
+        // 이력 조회 함수들 개선
+        async function loadHistory() {
+            showLoadingMessage('수도 이용내역을 조회하는 중...');
             
-            let filteredData = waterHistory;
-            
-            // 필터링
-            if (startMonth) {
-                filteredData = filteredData.filter(d => d.reading_month >= startMonth);
+            try {
+                // 온라인 모드에서는 최신 데이터 다시 로드
+                if (isOnlineMode) {
+                    await loadWaterHistory();
+                    updateStatusBar();
+                }
+                
+                const startMonth = document.getElementById('historyStartMonth').value;
+                const endMonth = document.getElementById('historyEndMonth').value;
+                const building = document.getElementById('historyBuilding').value;
+                const room = document.getElementById('historyRoom').value;
+                
+                let filteredData = waterHistory;
+                
+                // 필터링 적용
+                if (startMonth) filteredData = filteredData.filter(d => d.reading_month >= startMonth);
+                if (endMonth) filteredData = filteredData.filter(d => d.reading_month <= endMonth);
+                if (building) filteredData = filteredData.filter(d => d.building_name === building);
+                if (room) filteredData = filteredData.filter(d => d.room_number === room);
+                
+                // 최신 데이터부터 정렬
+                filteredData.sort((a, b) => {
+                    if (a.reading_month !== b.reading_month) {
+                        return b.reading_month.localeCompare(a.reading_month);
+                    }
+                    return b.input_date.localeCompare(a.input_date);
+                });
+                
+                hideLoadingMessage();
+                displayHistory(filteredData);
+                displayHistorySummary(filteredData);
+                
+                console.log('이력 조회 완료:', {
+                    전체데이터: waterHistory.length,
+                    필터링후: filteredData.length,
+                    조건: { startMonth, endMonth, building, room }
+                });
+                
+            } catch (error) {
+                hideLoadingMessage();
+                console.error('이력 조회 오류:', error);
+                showErrorMessage('이력 조회 중 오류가 발생했습니다: ' + error.message);
             }
-            if (endMonth) {
-                filteredData = filteredData.filter(d => d.reading_month <= endMonth);
-            }
-            if (building) {
-                filteredData = filteredData.filter(d => d.building_name === building);
-            }
-            if (room) {
-                filteredData = filteredData.filter(d => d.room_number === room);
-            }
-            
-            displayHistory(filteredData);
-            displayHistorySummary(filteredData);
         }
         
-        // 이력 표시
         function displayHistory(data) {
             const content = document.getElementById('historyContent');
             
             if (data.length === 0) {
-                content.innerHTML = '<div class="no-data">검색 결과가 없습니다.</div>';
+                content.innerHTML = `
+                    <div class="no-data">
+                        <h3 style="color: #2c3e50; margin-bottom: 10px;">📋 검색 결과가 없습니다</h3>
+                        <p style="color: #666; margin-bottom: 15px;">다른 조건으로 검색해보세요.</p>
+                        <div style="font-size: 14px; color: #888;">
+                            💡 팁: 넓은 기간으로 검색하거나 건물/세대 필터를 제거해보세요.
+                        </div>
+                    </div>
+                `;
                 return;
             }
             
             const html = `
-                <table class="history-table">
-                    <thead>
-                        <tr>
-                            <th>검침월</th>
-                            <th>건물명</th>
-                            <th>세대</th>
-                            <th>전월검침</th>
-                            <th>당월검침</th>
-                            <th>사용량</th>
-                            <th>수도요금</th>
-                            <th>입력일</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${data.map(item => `
+                <div style="margin-bottom: 15px; color: #666; font-size: 14px;">
+                    총 <strong style="color: #2c3e50;">${data.length}건</strong>의 검침 내역을 찾았습니다.
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="history-table">
+                        <thead>
                             <tr>
-                                <td>${item.reading_month}</td>
-                                <td>${item.building_name}</td>
-                                <td>${item.room_number}</td>
-                                <td>${formatNumber(item.prev_reading)}</td>
-                                <td>${formatNumber(item.curr_reading)}</td>
-                                <td>${item.usage_tons}톤</td>
-                                <td>${formatCurrency(item.water_fee)}</td>
-                                <td>${item.input_date}</td>
+                                <th>검침월</th><th>건물명</th><th>세대</th><th>전월검침</th>
+                                <th>당월검침</th><th>사용량</th><th>수도요금</th><th>입력일</th>
                             </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            ${data.map((item, index) => `
+                                <tr style="background: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
+                                    <td><strong>${item.reading_month}</strong></td>
+                                    <td>${item.building_name}</td>
+                                    <td>${item.room_number}</td>
+                                    <td>${formatNumber(item.prev_reading)}</td>
+                                    <td>${formatNumber(item.curr_reading)}</td>
+                                    <td><strong style="color: #3498db;">${item.usage_tons}톤</strong></td>
+                                    <td><strong style="color: #27ae60;">${formatCurrency(item.water_fee)}</strong></td>
+                                    <td style="color: #666; font-size: 13px;">${item.input_date}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
             `;
             
             content.innerHTML = html;
         }
         
-        // 요약 통계 표시
         function displayHistorySummary(data) {
             if (data.length === 0) {
                 document.getElementById('historySummary').style.display = 'none';
@@ -1216,33 +1686,24 @@
             document.getElementById('historySummary').style.display = 'grid';
         }
         
-        // 통계 분석
+        // 통계 분석 함수들
         function generateStats() {
             const startMonth = document.getElementById('statsStartMonth').value;
             const endMonth = document.getElementById('statsEndMonth').value;
             const statsType = document.getElementById('statsType').value;
             
-            // 기간 필터링
             let filteredData = waterHistory;
-            if (startMonth) {
-                filteredData = filteredData.filter(d => d.reading_month >= startMonth);
-            }
-            if (endMonth) {
-                filteredData = filteredData.filter(d => d.reading_month <= endMonth);
-            }
+            if (startMonth) filteredData = filteredData.filter(d => d.reading_month >= startMonth);
+            if (endMonth) filteredData = filteredData.filter(d => d.reading_month <= endMonth);
             
             let statsData = [];
             
             if (statsType === 'building') {
-                // 건물별 통계
                 const buildingStats = {};
                 filteredData.forEach(item => {
                     if (!buildingStats[item.building_name]) {
                         buildingStats[item.building_name] = {
-                            name: item.building_name,
-                            totalUsage: 0,
-                            totalFee: 0,
-                            count: 0
+                            name: item.building_name, totalUsage: 0, totalFee: 0, count: 0
                         };
                     }
                     buildingStats[item.building_name].totalUsage += item.usage_tons;
@@ -1251,16 +1712,13 @@
                 });
                 statsData = Object.values(buildingStats);
             } else if (statsType === 'room') {
-                // 세대별 통계
                 const roomStats = {};
                 filteredData.forEach(item => {
                     const key = `${item.building_name}-${item.room_number}`;
                     if (!roomStats[key]) {
                         roomStats[key] = {
                             name: `${item.building_name} ${item.room_number}`,
-                            totalUsage: 0,
-                            totalFee: 0,
-                            count: 0
+                            totalUsage: 0, totalFee: 0, count: 0
                         };
                     }
                     roomStats[key].totalUsage += item.usage_tons;
@@ -1269,15 +1727,11 @@
                 });
                 statsData = Object.values(roomStats);
             } else if (statsType === 'monthly') {
-                // 월별 통계
                 const monthlyStats = {};
                 filteredData.forEach(item => {
                     if (!monthlyStats[item.reading_month]) {
                         monthlyStats[item.reading_month] = {
-                            name: item.reading_month,
-                            totalUsage: 0,
-                            totalFee: 0,
-                            count: 0
+                            name: item.reading_month, totalUsage: 0, totalFee: 0, count: 0
                         };
                     }
                     monthlyStats[item.reading_month].totalUsage += item.usage_tons;
@@ -1290,8 +1744,7 @@
             displayStats(statsData, statsType);
         }
         
-        // 통계 결과 표시
-        function displayStats(data, type) {
+        function displayStats(data, type, totalRecords) {
             const content = document.getElementById('statisticsContent');
             
             if (data.length === 0) {
@@ -1299,41 +1752,87 @@
                 return;
             }
             
-            // 정렬 (사용량 기준 내림차순)
+            // 사용량 기준 내림차순 정렬
             data.sort((a, b) => b.totalUsage - a.totalUsage);
             
+            // 전체 통계 계산
+            const totalUsage = data.reduce((sum, item) => sum + item.totalUsage, 0);
+            const totalFee = data.reduce((sum, item) => sum + item.totalFee, 0);
+            const avgUsage = totalUsage / data.length;
+            const avgFee = totalFee / data.length;
+            
             const html = `
+                <!-- 통계 요약 -->
+                <div class="summary-cards" style="margin-bottom: 25px;">
+                    <div class="summary-card">
+                        <div class="number">${totalRecords}</div>
+                        <div class="label">총 검침 건수</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">${data.length}</div>
+                        <div class="label">${getStatsTypeLabel(type)} 수</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">${totalUsage.toFixed(1)}톤</div>
+                        <div class="label">총 사용량</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">${formatCurrency(totalFee)}</div>
+                        <div class="label">총 수도요금</div>
+                    </div>
+                    <div class="summary-card">
+                        <div class="number">${avgUsage.toFixed(1)}톤</div>
+                        <div class="label">평균 사용량</div>
+                    </div>
+                </div>
+                
                 <div class="section-card">
                     <div class="section-header">
-                        <span>📊 ${getStatsTypeLabel(type)} 통계</span>
+                        <span>📊 ${getStatsTypeLabel(type)}별 통계 (사용량 순)</span>
+                        <span style="font-size: 14px; opacity: 0.8;">${data.length}개 항목</span>
                     </div>
                     <div class="section-content">
-                        <table class="history-table">
-                            <thead>
-                                <tr>
-                                    <th>순위</th>
-                                    <th>${getStatsTypeLabel(type)}</th>
-                                    <th>총 사용량</th>
-                                    <th>평균 사용량</th>
-                                    <th>총 요금</th>
-                                    <th>평균 요금</th>
-                                    <th>검침 횟수</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${data.map((item, index) => `
+                        <div style="overflow-x: auto;">
+                            <table class="history-table">
+                                <thead>
                                     <tr>
-                                        <td>${index + 1}</td>
-                                        <td>${item.name}</td>
-                                        <td>${item.totalUsage.toFixed(1)}톤</td>
-                                        <td>${(item.totalUsage / item.count).toFixed(1)}톤</td>
-                                        <td>${formatCurrency(item.totalFee)}</td>
-                                        <td>${formatCurrency(Math.round(item.totalFee / item.count))}</td>
-                                        <td>${item.count}회</td>
+                                        <th>순위</th><th>${getStatsTypeLabel(type)}</th>
+                                        <th>총 사용량</th><th>평균 사용량</th><th>총 요금</th>
+                                        <th>평균 요금</th><th>검침 횟수</th><th>비율</th>
                                     </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    ${data.map((item, index) => {
+                                        const usageRatio = ((item.totalUsage / totalUsage) * 100).toFixed(1);
+                                        const feeRatio = ((item.totalFee / totalFee) * 100).toFixed(1);
+                                        const avgItemUsage = (item.totalUsage / item.count).toFixed(1);
+                                        const avgItemFee = Math.round(item.totalFee / item.count);
+                                        
+                                        return `
+                                            <tr style="background: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
+                                                <td><strong style="color: ${index < 3 ? '#e74c3c' : '#2c3e50'};">${index + 1}</strong></td>
+                                                <td><strong>${item.name}</strong></td>
+                                                <td><strong style="color: #3498db;">${item.totalUsage.toFixed(1)}톤</strong></td>
+                                                <td>${avgItemUsage}톤</td>
+                                                <td><strong style="color: #27ae60;">${formatCurrency(item.totalFee)}</strong></td>
+                                                <td>${formatCurrency(avgItemFee)}</td>
+                                                <td>${item.count}회</td>
+                                                <td style="font-size: 12px; color: #666;">${usageRatio}%</td>
+                                            </tr>
+                                        `;
+                                    }).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 8px; font-size: 14px; color: #666;">
+                            💡 <strong>분석 정보:</strong> 
+                            상위 3개 ${getStatsTypeLabel(type)}가 전체 사용량의 
+                            <strong style="color: #e74c3c;">
+                                ${data.slice(0, 3).reduce((sum, item) => sum + item.totalUsage, 0).toFixed(1)}톤
+                                (${((data.slice(0, 3).reduce((sum, item) => sum + item.totalUsage, 0) / totalUsage) * 100).toFixed(1)}%)
+                            </strong>를 차지합니다.
+                        </div>
                     </div>
                 </div>
             `;
@@ -1341,19 +1840,97 @@
             content.innerHTML = html;
         }
         
-        // 통계 타입 라벨
         function getStatsTypeLabel(type) {
-            const labels = {
-                'building': '건물',
-                'room': '세대',
-                'monthly': '월'
-            };
+            const labels = { 'building': '건물', 'room': '세대', 'monthly': '월' };
             return labels[type] || '';
         }
         
-        // Excel 다운로드
         function exportHistory() {
             alert('Excel 다운로드 기능을 구현하세요.');
+        }
+        
+        // 메시지 함수들 개선
+        function showLoadingMessage(text = '🔄 데이터를 불러오는 중...') {
+            hideLoadingMessage(); // 기존 메시지 제거
+            
+            const message = document.createElement('div');
+            message.id = 'loadingMessage';
+            message.style.cssText = `
+                position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+                background: rgba(52, 73, 94, 0.95); color: white; padding: 25px 35px;
+                border-radius: 10px; z-index: 10000; box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+                font-size: 16px; text-align: center; min-width: 250px;
+            `;
+            message.innerHTML = `
+                <div style="margin-bottom: 15px;">${text}</div>
+                <div style="width: 200px; height: 4px; background: rgba(255,255,255,0.3); border-radius: 2px; overflow: hidden;">
+                    <div style="width: 100%; height: 100%; background: #3498db; animation: loading 1.5s infinite;"></div>
+                </div>
+                <style>
+                    @keyframes loading {
+                        0% { transform: translateX(-100%); }
+                        100% { transform: translateX(100%); }
+                    }
+                </style>
+            `;
+            document.body.appendChild(message);
+        }
+        
+        function hideLoadingMessage() {
+            const message = document.getElementById('loadingMessage');
+            if (message) message.remove();
+        }
+        
+        function showSuccessMessage(text) {
+            showMessage(text, '#27ae60', '✅');
+        }
+        
+        function showWarningMessage(text) {
+            showMessage(text, '#f39c12', '⚠️');
+        }
+        
+        function showErrorMessage(text) {
+            showMessage(text, '#e74c3c', '❌');
+        }
+        
+        function showMessage(text, color, icon = '') {
+            const existingMessage = document.getElementById('statusMessage');
+            if (existingMessage) existingMessage.remove();
+            
+            const message = document.createElement('div');
+            message.id = 'statusMessage';
+            message.style.cssText = `
+                position: fixed; top: 80px; left: 50%; transform: translateX(-50%);
+                background: ${color}; color: white; padding: 15px 25px;
+                border-radius: 8px; z-index: 9999; box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                font-size: 14px; max-width: 90%; text-align: center;
+                animation: slideIn 0.3s ease-out;
+            `;
+            message.innerHTML = `${icon} ${text}`;
+            
+            // 애니메이션 CSS 추가
+            if (!document.getElementById('messageAnimation')) {
+                const style = document.createElement('style');
+                style.id = 'messageAnimation';
+                style.textContent = `
+                    @keyframes slideIn {
+                        from { transform: translateX(-50%) translateY(-20px); opacity: 0; }
+                        to { transform: translateX(-50%) translateY(0); opacity: 1; }
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            document.body.appendChild(message);
+            
+            // 자동 제거 (성공 메시지는 더 오래 표시)
+            const duration = color === '#27ae60' ? 7000 : 5000;
+            setTimeout(() => {
+                if (message.parentNode) {
+                    message.style.animation = 'slideIn 0.3s ease-out reverse';
+                    setTimeout(() => message.remove(), 300);
+                }
+            }, duration);
         }
         
         // 유틸리티 함수들

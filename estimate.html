@@ -299,7 +299,7 @@
         </div>
 
         <div class="form-container">
-            <form id="quoteForm">
+            <form id="quoteForm" action="https://formspree.io/f/xdkogqay" method="POST">
                 <div class="form-group">
                     <label for="name">성명 <span class="required">*</span></label>
                     <input type="text" id="name" name="name" required placeholder="성함을 입력해주세요">
@@ -314,35 +314,35 @@
                     <label>요청 작업 <span class="required">*</span></label>
                     <div class="services-grid">
                         <div class="service-item">
-                            <input type="checkbox" id="awning" name="services" value="어닝청소">
+                            <input type="checkbox" id="awning" name="services[]" value="어닝청소">
                             <label for="awning" class="service-label">🏠 어닝청소</label>
                         </div>
                         <div class="service-item">
-                            <input type="checkbox" id="glass" name="services" value="유리청소">
+                            <input type="checkbox" id="glass" name="services[]" value="유리청소">
                             <label for="glass" class="service-label">🪟 유리청소</label>
                         </div>
                         <div class="service-item">
-                            <input type="checkbox" id="aircon" name="services" value="에어컨청소">
+                            <input type="checkbox" id="aircon" name="services[]" value="에어컨청소">
                             <label for="aircon" class="service-label">❄️ 에어컨청소</label>
                         </div>
                         <div class="service-item">
-                            <input type="checkbox" id="commercial" name="services" value="상가청소">
+                            <input type="checkbox" id="commercial" name="services[]" value="상가청소">
                             <label for="commercial" class="service-label">🏢 상가청소</label>
                         </div>
                         <div class="service-item">
-                            <input type="checkbox" id="regular" name="services" value="정기청소">
+                            <input type="checkbox" id="regular" name="services[]" value="정기청소">
                             <label for="regular" class="service-label">📅 정기청소</label>
                         </div>
                         <div class="service-item">
-                            <input type="checkbox" id="carpet" name="services" value="카페트청소">
+                            <input type="checkbox" id="carpet" name="services[]" value="카페트청소">
                             <label for="carpet" class="service-label">🧽 카페트청소</label>
                         </div>
                         <div class="service-item">
-                            <input type="checkbox" id="mattress" name="services" value="매트리스청소">
+                            <input type="checkbox" id="mattress" name="services[]" value="매트리스청소">
                             <label for="mattress" class="service-label">🛏️ 매트리스청소</label>
                         </div>
                         <div class="service-item">
-                            <input type="checkbox" id="washer" name="services" value="세탁기청소">
+                            <input type="checkbox" id="washer" name="services[]" value="세탁기청소">
                             <label for="washer" class="service-label">🌀 세탁기청소</label>
                         </div>
                     </div>

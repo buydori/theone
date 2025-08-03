@@ -294,7 +294,10 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🧽 더원클린앤케어</h1>
+            <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 10px;">
+                <img src="https://raw.githubusercontent.com/buydori/theone/main/images/homepagelogo.png" alt="더원클린앤케어 로고" style="width: 60px; height: 60px; object-fit: contain;">
+                <h1 style="margin: 0;">더원클린앤케어</h1>
+            </div>
             <p>전문적인 청소 서비스, 무료 방문 견적</p>
         </div>
 
@@ -350,19 +353,30 @@
 
                 <div class="form-group">
                     <label>현장 사진 업로드</label>
-                    <div class="file-upload" id="fileUpload">
-                        <div class="file-upload-icon">📷</div>
-                        <p><strong>클릭하거나 파일을 끌어다 놓으세요</strong></p>
-                        <p>여러 장의 사진을 업로드할 수 있습니다</p>
-                        <input type="file" id="photos" multiple accept="image/*">
+                    <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
+                        📷 현장 사진이 있으시면 <strong>theonecc@naver.com</strong>으로 직접 보내주시거나<br>
+                        견적 요청 후 전화 상담 시 카카오톡으로 보내주세요!
+                    </p>
+                    <div class="file-upload" style="border: 2px dashed #ddd; padding: 20px; text-align: center; color: #666;">
+                        <div style="font-size: 2rem; margin-bottom: 10px;">📧</div>
+                        <p>사진은 이메일이나 카카오톡으로 보내주세요</p>
                     </div>
-                    <div class="file-list" id="fileList"></div>
                 </div>
 
                 <div class="form-group">
                     <label for="serviceDate">서비스 희망일자 <span class="required">*</span></label>
                     <input type="date" id="serviceDate" name="serviceDate" required>
                 </div>
+
+                <div class="form-group">
+                    <label for="message">추가 요청사항</label>
+                    <textarea id="message" name="message" rows="4" placeholder="현장 상황, 특별 요청사항 등을 자유롭게 작성해주세요"></textarea>
+                </div>
+
+                <!-- Formspree 숨김 필드 -->
+                <input type="hidden" name="_subject" value="더원클린앤케어 견적 요청">
+                <input type="hidden" name="_next" value="https://buydori.github.io/theone/estimate.html?success=true">
+                <input type="hidden" name="_cc" value="theonecc@naver.com">
 
                 <button type="submit" class="submit-btn" id="submitBtn">
                     💌 견적 요청하기
@@ -384,106 +398,34 @@
     </div>
 
     <script>
-        let selectedFiles = [];
-
-        // 파일 업로드 처리
-        const fileUpload = document.getElementById('fileUpload');
-        const fileInput = document.getElementById('photos');
-        const fileList = document.getElementById('fileList');
-
-        fileUpload.addEventListener('click', () => fileInput.click());
-
-        fileUpload.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            fileUpload.classList.add('dragover');
-        });
-
-        fileUpload.addEventListener('dragleave', () => {
-            fileUpload.classList.remove('dragover');
-        });
-
-        fileUpload.addEventListener('drop', (e) => {
-            e.preventDefault();
-            fileUpload.classList.remove('dragover');
-            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
-            addFiles(files);
-        });
-
-        fileInput.addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            addFiles(files);
-        });
-
-        function addFiles(files) {
-            files.forEach(file => {
-                if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
-                    selectedFiles.push(file);
-                }
-            });
-            updateFileList();
-        }
-
-        function updateFileList() {
-            fileList.innerHTML = '';
-            selectedFiles.forEach((file, index) => {
-                const fileItem = document.createElement('div');
-                fileItem.className = 'file-item';
-                fileItem.innerHTML = `
-                    <span>📷 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
-                    <button type="button" class="remove-file" onclick="removeFile(${index})">×</button>
-                `;
-                fileList.appendChild(fileItem);
-            });
-        }
-
-        function removeFile(index) {
-            selectedFiles.splice(index, 1);
-            updateFileList();
-        }
-
         // 오늘 날짜 이후만 선택 가능하도록 설정
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('serviceDate').min = today;
 
-        // 폼 제출 처리
+        // URL 매개변수 확인하여 성공 메시지 표시
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('success') === 'true') {
+            document.getElementById('successModal').style.display = 'block';
+            // URL에서 success 매개변수 제거
+            const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+            window.history.pushState({path: newUrl}, '', newUrl);
+        }
+
+        // 폼 제출 전 유효성 검사
         document.getElementById('quoteForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const formData = new FormData();
-            const name = document.getElementById('name').value;
-            const phone = document.getElementById('phone').value;
-            const serviceDate = document.getElementById('serviceDate').value;
-            
-            // 선택된 서비스 수집
-            const selectedServices = Array.from(document.querySelectorAll('input[name="services"]:checked'))
-                .map(cb => cb.value);
+            // 선택된 서비스 확인
+            const selectedServices = Array.from(document.querySelectorAll('input[name="services[]"]:checked'));
             
             if (selectedServices.length === 0) {
+                e.preventDefault();
                 alert('최소 하나의 서비스를 선택해주세요.');
                 return;
             }
 
-            // 폼 데이터 구성
-            const quoteData = {
-                name,
-                phone,
-                services: selectedServices,
-                serviceDate,
-                photos: selectedFiles.map(file => file.name),
-                submittedAt: new Date().toLocaleString('ko-KR')
-            };
-
-            // 실제로는 서버로 전송되어야 하는 부분
-            console.log('견적 요청 데이터:', quoteData);
-            console.log('업로드된 파일들:', selectedFiles);
-
-            // 성공 모달 표시
-            document.getElementById('successModal').style.display = 'block';
-            
-            // 폼 초기화
-            this.reset();
-            selectedFiles = [];
-            updateFileList();
+            // 폼이 제출되기 전에 로딩 상태 표시
+            const submitBtn = document.getElementById('submitBtn');
+            submitBtn.textContent = '📤 전송 중...';
+            submitBtn.disabled = true;
         });
 
         function closeModal() {
@@ -508,6 +450,8 @@
             }
             e.target.value = value;
         });
+
+        console.log('더원클린앤케어 견적요청서 준비 완료! 🧹✨');
     </script>
 </body>
 </html>

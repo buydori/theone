@@ -302,7 +302,7 @@
         </div>
 
         <div class="form-container">
-            <form id="quoteForm" action="https://formspree.io/f/xdkogqay" method="POST" enctype="multipart/form-data">
+            <form id="quoteForm" action="https://script.google.com/macros/s/AKfycbx06gCvxFumJoIS-p24cduJZf-A4UMu-jdtpjZayDkb507SybTA_2To37uxnupP_pvN/exec" method="POST" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="name">성명 <span class="required">*</span></label>
                     <input type="text" id="name" name="name" required placeholder="성함을 입력해주세요">
@@ -372,10 +372,8 @@
                     <textarea id="message" name="message" rows="4" placeholder="현장 상황, 특별 요청사항 등을 자유롭게 작성해주세요"></textarea>
                 </div>
 
-                <!-- Formspree 숨김 필드 -->
-                <input type="hidden" name="_subject" value="더원클린앤케어 견적 요청">
-                <input type="hidden" name="_next" value="https://buydori.github.io/theone/estimate.html?success=true">
-                <input type="hidden" name="_cc" value="theonecc@naver.com">
+                <!-- Google Apps Script 숨김 필드 -->
+                <input type="hidden" name="_redirect" value="https://buydori.github.io/theone/estimate.html?success=true">
 
                 <button type="submit" class="submit-btn" id="submitBtn">
                     💌 견적 요청하기
@@ -389,9 +387,10 @@
         <div class="modal-content">
             <h2>✅ 견적 요청 완료!</h2>
             <p>견적 요청이 성공적으로 접수되었습니다.<br>
-            빠른 시일 내에 연락드리겠습니다.<br><br>
+            <strong>구글 시트에 자동 저장</strong>되었으며<br>
             <strong>theonecc@naver.com</strong>으로<br>
-            상세 내용이 발송되었습니다.</p>
+            즉시 알림이 발송되었습니다.<br><br>
+            빠른 시일 내에 연락드리겠습니다! 🧹✨</p>
             <button class="modal-btn" onclick="closeModal()">확인</button>
         </div>
     </div>
@@ -476,21 +475,63 @@
             window.history.pushState({path: newUrl}, '', newUrl);
         }
 
-        // 폼 제출 전 유효성 검사
+        // 폼 제출 전 유효성 검사 및 AJAX 처리
         document.getElementById('quoteForm').addEventListener('submit', function(e) {
+            e.preventDefault(); // 기본 폼 제출 방지
+            
             // 선택된 서비스 확인
             const selectedServices = Array.from(document.querySelectorAll('input[name="services[]"]:checked'));
             
             if (selectedServices.length === 0) {
-                e.preventDefault();
                 alert('최소 하나의 서비스를 선택해주세요.');
                 return;
             }
 
-            // 폼이 제출되기 전에 로딩 상태 표시
+            // 로딩 상태 표시
             const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.textContent;
             submitBtn.textContent = '📤 전송 중...';
             submitBtn.disabled = true;
+
+            // 폼 데이터 생성
+            const formData = new FormData(this);
+            
+            // 선택된 파일이 있으면 추가
+            if (selectedFiles.length > 0) {
+                selectedFiles.forEach((file, index) => {
+                    formData.append(`photo_${index}`, file);
+                });
+            }
+
+            // Google Apps Script로 데이터 전송
+            fetch(this.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('서버 응답:', data);
+                
+                // 성공 모달 표시
+                document.getElementById('successModal').style.display = 'block';
+                
+                // 폼 초기화
+                this.reset();
+                selectedFiles = [];
+                updateFileList();
+                
+                // 버튼 복원
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            })
+            .catch(error => {
+                console.error('전송 오류:', error);
+                alert('견적 요청 전송 중 오류가 발생했습니다. 다시 시도해주세요.');
+                
+                // 버튼 복원
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            });
 
             console.log('견적 요청 제출:', {
                 name: document.getElementById('name').value,

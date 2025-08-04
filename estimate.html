@@ -302,7 +302,7 @@
         </div>
 
         <div class="form-container">
-            <form id="quoteForm" action="https://formspree.io/f/xdkogqay" method="POST">
+            <form id="quoteForm" action="https://formspree.io/f/xdkogqay" method="POST" enctype="multipart/form-data">
                 <div class="form-group">
                     <label for="name">성명 <span class="required">*</span></label>
                     <input type="text" id="name" name="name" required placeholder="성함을 입력해주세요">
@@ -353,14 +353,13 @@
 
                 <div class="form-group">
                     <label>현장 사진 업로드</label>
-                    <p style="font-size: 14px; color: #666; margin-bottom: 10px;">
-                        📷 현장 사진이 있으시면 <strong>theonecc@naver.com</strong>으로 직접 보내주시거나<br>
-                        견적 요청 후 전화 상담 시 카카오톡으로 보내주세요!
-                    </p>
-                    <div class="file-upload" style="border: 2px dashed #ddd; padding: 20px; text-align: center; color: #666;">
-                        <div style="font-size: 2rem; margin-bottom: 10px;">📧</div>
-                        <p>사진은 이메일이나 카카오톡으로 보내주세요</p>
+                    <div class="file-upload" id="fileUpload">
+                        <div class="file-upload-icon">📷</div>
+                        <p><strong>클릭하거나 파일을 끌어다 놓으세요</strong></p>
+                        <p>여러 장의 사진을 업로드할 수 있습니다</p>
+                        <input type="file" id="photos" name="photos" multiple accept="image/*">
                     </div>
+                    <div class="file-list" id="fileList"></div>
                 </div>
 
                 <div class="form-group">
@@ -398,6 +397,72 @@
     </div>
 
     <script>
+        let selectedFiles = [];
+
+        // 파일 업로드 처리
+        const fileUpload = document.getElementById('fileUpload');
+        const fileInput = document.getElementById('photos');
+        const fileList = document.getElementById('fileList');
+
+        fileUpload.addEventListener('click', () => fileInput.click());
+
+        fileUpload.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            fileUpload.classList.add('dragover');
+        });
+
+        fileUpload.addEventListener('dragleave', () => {
+            fileUpload.classList.remove('dragover');
+        });
+
+        fileUpload.addEventListener('drop', (e) => {
+            e.preventDefault();
+            fileUpload.classList.remove('dragover');
+            const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith('image/'));
+            addFiles(files);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const files = Array.from(e.target.files);
+            addFiles(files);
+        });
+
+        function addFiles(files) {
+            files.forEach(file => {
+                if (!selectedFiles.find(f => f.name === file.name && f.size === file.size)) {
+                    selectedFiles.push(file);
+                }
+            });
+            updateFileList();
+            updateFileInput();
+        }
+
+        function updateFileList() {
+            fileList.innerHTML = '';
+            selectedFiles.forEach((file, index) => {
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+                fileItem.innerHTML = `
+                    <span>📷 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                    <button type="button" class="remove-file" onclick="removeFile(${index})">×</button>
+                `;
+                fileList.appendChild(fileItem);
+            });
+        }
+
+        function updateFileInput() {
+            // DataTransfer 객체를 사용하여 input의 files 업데이트
+            const dt = new DataTransfer();
+            selectedFiles.forEach(file => dt.items.add(file));
+            fileInput.files = dt.files;
+        }
+
+        function removeFile(index) {
+            selectedFiles.splice(index, 1);
+            updateFileList();
+            updateFileInput();
+        }
+
         // 오늘 날짜 이후만 선택 가능하도록 설정
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('serviceDate').min = today;
@@ -426,6 +491,15 @@
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.textContent = '📤 전송 중...';
             submitBtn.disabled = true;
+
+            console.log('견적 요청 제출:', {
+                name: document.getElementById('name').value,
+                phone: document.getElementById('phone').value,
+                services: selectedServices.map(s => s.value),
+                serviceDate: document.getElementById('serviceDate').value,
+                photos: selectedFiles.map(f => f.name),
+                message: document.getElementById('message').value
+            });
         });
 
         function closeModal() {
@@ -451,7 +525,7 @@
             e.target.value = value;
         });
 
-        console.log('더원클린앤케어 견적요청서 준비 완료! 🧹✨');
+        console.log('더원클린앤케어 견적요청서 준비 완료! 🧹✨ (파일 업로드 기능 포함)');
     </script>
 </body>
 </html>

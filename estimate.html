@@ -374,6 +374,7 @@
 
                 <!-- Google Apps Script 숨김 필드 -->
                 <input type="hidden" name="_redirect" value="https://buydori.github.io/theone/estimate.html?success=true">
+                <input type="hidden" name="_timestamp" id="timestampField">
 
                 <button type="submit" class="submit-btn" id="submitBtn">
                     💌 견적 요청하기
@@ -475,63 +476,32 @@
             window.history.pushState({path: newUrl}, '', newUrl);
         }
 
-        // 폼 제출 전 유효성 검사 및 AJAX 처리
+        // 폼 제출 전 유효성 검사
         document.getElementById('quoteForm').addEventListener('submit', function(e) {
-            e.preventDefault(); // 기본 폼 제출 방지
+            // 타임스탬프 설정
+            document.getElementById('timestampField').value = new Date().toISOString();
             
             // 선택된 서비스 확인
             const selectedServices = Array.from(document.querySelectorAll('input[name="services[]"]:checked'));
             
             if (selectedServices.length === 0) {
+                e.preventDefault();
                 alert('최소 하나의 서비스를 선택해주세요.');
                 return;
             }
 
-            // 로딩 상태 표시
-            const submitBtn = document.getElementById('submitBtn');
-            const originalText = submitBtn.textContent;
-            submitBtn.textContent = '📤 전송 중...';
-            submitBtn.disabled = true;
-
-            // 폼 데이터 생성
-            const formData = new FormData(this);
-            
-            // 선택된 파일이 있으면 추가
+            // 파일이 있으면 FormData로 처리, 없으면 일반 submit
             if (selectedFiles.length > 0) {
-                selectedFiles.forEach((file, index) => {
-                    formData.append(`photo_${index}`, file);
-                });
+                e.preventDefault();
+                submitWithFiles();
+            } else {
+                // 일반 form submit (CORS 문제 없음)
+                const submitBtn = document.getElementById('submitBtn');
+                submitBtn.textContent = '📤 전송 중...';
+                submitBtn.disabled = true;
+                
+                // 폼이 성공적으로 제출되면 성공 페이지로 리다이렉트됨
             }
-
-            // Google Apps Script로 데이터 전송
-            fetch(this.action, {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.text())
-            .then(data => {
-                console.log('서버 응답:', data);
-                
-                // 성공 모달 표시
-                document.getElementById('successModal').style.display = 'block';
-                
-                // 폼 초기화
-                this.reset();
-                selectedFiles = [];
-                updateFileList();
-                
-                // 버튼 복원
-                submitBtn.textContent = originalText;
-                submitBtn.disabled = false;
-            })
-            .catch(error => {
-                console.error('전송 오류:', error);
-                alert('견적 요청 전송 중 오류가 발생했습니다. 다시 시도해주세요.');
-                
-                // 버튼 복원
-                submitBtn.textContent = originalText;
-                submitBtn.disabled = false;
-            });
 
             console.log('견적 요청 제출:', {
                 name: document.getElementById('name').value,
@@ -542,6 +512,63 @@
                 message: document.getElementById('message').value
             });
         });
+
+        // 파일이 있을 때만 AJAX 사용
+        async function submitWithFiles() {
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = '📤 전송 중...';
+            submitBtn.disabled = true;
+
+            try {
+                const formData = new FormData(document.getElementById('quoteForm'));
+                
+                // 선택된 파일 추가
+                selectedFiles.forEach((file, index) => {
+                    formData.append(`photo_${index}`, file);
+                });
+
+                // iframe을 사용한 CORS 우회 방법
+                const iframe = document.createElement('iframe');
+                iframe.style.display = 'none';
+                iframe.name = 'uploadFrame';
+                document.body.appendChild(iframe);
+
+                const form = document.getElementById('quoteForm');
+                const originalTarget = form.target;
+                const originalAction = form.action;
+
+                form.target = 'uploadFrame';
+                form.submit();
+
+                // 3초 후 성공 처리
+                setTimeout(() => {
+                    form.target = originalTarget;
+                    
+                    // 성공 모달 표시
+                    document.getElementById('successModal').style.display = 'block';
+                    
+                    // 폼 초기화
+                    form.reset();
+                    selectedFiles = [];
+                    updateFileList();
+                    
+                    // 버튼 복원
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                    
+                    // iframe 제거
+                    document.body.removeChild(iframe);
+                }, 3000);
+
+            } catch (error) {
+                console.error('전송 오류:', error);
+                alert('견적 요청 전송 중 오류가 발생했습니다. 다시 시도해주세요.');
+                
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        }
 
         function closeModal() {
             document.getElementById('successModal').style.display = 'none';

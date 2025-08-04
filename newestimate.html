@@ -542,14 +542,17 @@
         const CONFIG = {
             SCRIPT_URL: 'https://script.google.com/macros/s/AKfycbx06gCvxFumJoIS-p24cduJZf-A4UMu-jdtpjZayDkb507SybTA_2To37uxnupP_pvN/exec',
             REFRESH_INTERVAL: 30000, // 30초마다 자동 새로고침
+            NOTIFICATION_ENABLED: true
         };
 
         let quotes = [];
         let refreshInterval;
+        let lastQuoteCount = 0;
 
         // 앱 초기화
         document.addEventListener('DOMContentLoaded', function() {
             initializeApp();
+            requestNotificationPermission();
             startAutoRefresh();
             registerServiceWorker();
         });
@@ -558,6 +561,108 @@
         function initializeApp() {
             loadQuotes();
             console.log('더원클린앤케어 관리자 앱 시작! 🧹📱');
+        }
+
+        // 푸시 알림 권한 요청
+        async function requestNotificationPermission() {
+            if ('Notification' in window) {
+                const permission = await Notification.requestPermission();
+                
+                if (permission === 'granted') {
+                    console.log('✅ 푸시 알림 권한 승인됨');
+                    showWelcomeNotification();
+                } else {
+                    console.log('❌ 푸시 알림 권한 거부됨');
+                    // 권한 요청 안내 표시
+                    showPermissionGuide();
+                }
+            }
+        }
+
+        // 환영 알림
+        function showWelcomeNotification() {
+            if (Notification.permission === 'granted') {
+                new Notification('🧹 더원클린앤케어 관리자', {
+                    body: '푸시 알림이 활성화되었습니다!\n새 견적 요청 시 즉시 알림을 받으실 수 있습니다.',
+                    icon: 'https://raw.githubusercontent.com/buydori/theone/main/images/homepagelogo.png',
+                    badge: 'https://raw.githubusercontent.com/buydori/theone/main/images/homepagelogo.png',
+                    tag: 'welcome',
+                    requireInteraction: false,
+                    silent: false
+                });
+            }
+        }
+
+        // 새 견적 알림
+        function showNewQuoteNotification(quote) {
+            if (Notification.permission === 'granted' && CONFIG.NOTIFICATION_ENABLED) {
+                const notification = new Notification('🧹 새 견적 요청 접수!', {
+                    body: `${quote.name}님의 ${quote.services} 견적 요청\n희망일자: ${quote.serviceDate}\n연락처: ${quote.phone}`,
+                    icon: 'https://raw.githubusercontent.com/buydori/theone/main/images/homepagelogo.png',
+                    badge: 'https://raw.githubusercontent.com/buydori/theone/main/images/homepagelogo.png',
+                    tag: `quote-${quote.id}`,
+                    requireInteraction: true,
+                    silent: false,
+                    vibrate: [200, 100, 200], // 진동 패턴
+                    actions: [
+                        {
+                            action: 'call',
+                            title: '📞 전화걸기',
+                            icon: 'https://raw.githubusercontent.com/buydori/theone/main/images/homepagelogo.png'
+                        },
+                        {
+                            action: 'view',
+                            title: '👁️ 상세보기',
+                            icon: 'https://raw.githubusercontent.com/buydori/theone/main/images/homepagelogo.png'
+                        }
+                    ]
+                });
+
+                // 알림 클릭 처리
+                notification.onclick = function() {
+                    window.focus();
+                    this.close();
+                };
+            }
+        }
+
+        // 권한 요청 안내
+        function showPermissionGuide() {
+            const guide = document.createElement('div');
+            guide.style.cssText = `
+                position: fixed;
+                top: 80px;
+                left: 20px;
+                right: 20px;
+                background: linear-gradient(135deg, #f39c12, #e67e22);
+                color: white;
+                padding: 15px;
+                border-radius: 8px;
+                box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+                z-index: 10000;
+                font-size: 14px;
+                text-align: center;
+            `;
+            guide.innerHTML = `
+                <div style="margin-bottom: 10px;">🔔 <strong>알림 권한이 필요합니다</strong></div>
+                <div style="margin-bottom: 10px;">새 견적 요청 시 즉시 알림을 받으려면 브라우저 설정에서 알림을 허용해주세요.</div>
+                <button onclick="requestNotificationPermission(); this.parentElement.remove();" 
+                        style="background: white; color: #f39c12; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold;">
+                    다시 요청하기
+                </button>
+                <button onclick="this.parentElement.remove();" 
+                        style="background: transparent; color: white; border: 1px solid white; padding: 8px 16px; border-radius: 4px; cursor: pointer; margin-left: 10px;">
+                    나중에
+                </button>
+            `;
+            document.body.appendChild(guide);
+
+            // 5초 후 자동 제거
+            setTimeout(() => {
+                if (guide.parentElement) {
+                    guide.remove();
+                }
+            }, 10000);
         }
 
         // 탭 전환
@@ -586,7 +691,12 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    quotes = data.data || [];
+                    const newQuotes = data.data || [];
+                    
+                    // 새 견적 확인 및 알림
+                    checkForNewQuotes(newQuotes);
+                    
+                    quotes = newQuotes;
                     updateUI();
                     hideNotification();
                 } else {
@@ -596,6 +706,42 @@
             } catch (error) {
                 console.error('견적 로드 오류:', error);
                 showError('견적 데이터를 불러올 수 없습니다.');
+            }
+        }
+
+        // 새 견적 확인
+        function checkForNewQuotes(newQuotes) {
+            // 첫 로드가 아닌 경우만 확인
+            if (lastQuoteCount > 0 && newQuotes.length > lastQuoteCount) {
+                const newQuotesAdded = newQuotes.slice(0, newQuotes.length - lastQuoteCount);
+                
+                newQuotesAdded.forEach(quote => {
+                    // 푸시 알림 발송
+                    showNewQuoteNotification(quote);
+                    
+                    // 사운드 재생 (옵션)
+                    playNotificationSound();
+                });
+                
+                // 알림 점 표시
+                showNotification();
+            }
+            
+            lastQuoteCount = newQuotes.length;
+        }
+
+        // 알림 사운드 재생
+        function playNotificationSound() {
+            // 브라우저에서 기본 알림음 재생
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmAaDjiF0fPSfiwGI3DEz+OYSAoUXrLL6qxYFAlBm9z0xVUcAzZ+zPDMeiMGJXO+z+OSQwsRV6/n7qBVEANBmNz0xWIcBz9+wq6l1zZ+zPTDciUFLHfB5mRsGjS6+lT1p1rUl1lrjdOJfLzduJ7lZLvJ3CJj1WOcPnmEaIRXpEujDdgUpB4aSiOOwP/8A==');
+                audio.volume = 0.3;
+                audio.play().catch(() => {
+                    // 자동재생 정책으로 실패할 수 있음
+                    console.log('알림 사운드 재생 실패 (브라우저 정책)');
+                });
+            } catch (error) {
+                console.log('알림 사운드 지원되지 않음');
             }
         }
 
@@ -854,10 +1000,12 @@
 
         // 자동 새로고침 시작
         function startAutoRefresh() {
-            refreshInterval = setInterval(() => {
-                loadQuotes();
-                showNotification();
+            refreshInterval = setInterval(async () => {
+                console.log('🔄 자동 새로고침 중...');
+                await loadQuotes();
             }, CONFIG.REFRESH_INTERVAL);
+            
+            console.log(`✅ 자동 새로고침 시작 (${CONFIG.REFRESH_INTERVAL / 1000}초 간격)`);
         }
 
         // 현재 탭 가져오기
@@ -916,9 +1064,96 @@
         // Service Worker 등록 (PWA)
         function registerServiceWorker() {
             if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.register('data:text/javascript;base64,c2VsZi5hZGRFdmVudExpc3RlbmVyKCdpbnN0YWxsJywgZnVuY3Rpb24oZXZlbnQpIHsgY29uc29sZS5sb2coJ1NlcnZpY2UgV29ya2VyIGluc3RhbGxlZCcpOyB9KTs=')
-                .then(() => console.log('Service Worker registered'))
-                .catch(err => console.log('Service Worker registration failed'));
+                // 고급 Service Worker 등록
+                const swCode = `
+                    self.addEventListener('install', function(event) {
+                        console.log('더원클린앤케어 Service Worker 설치됨');
+                        self.skipWaiting();
+                    });
+
+                    self.addEventListener('activate', function(event) {
+                        console.log('더원클린앤케어 Service Worker 활성화됨');
+                        event.waitUntil(self.clients.claim());
+                    });
+
+                    // 푸시 알림 액션 처리
+                    self.addEventListener('notificationclick', function(event) {
+                        console.log('알림 클릭됨:', event);
+                        event.notification.close();
+
+                        if (event.action === 'call') {
+                            // 전화걸기 처리
+                            event.waitUntil(
+                                clients.openWindow('tel:' + event.notification.data?.phone)
+                            );
+                        } else if (event.action === 'view') {
+                            // 상세보기 처리
+                            event.waitUntil(
+                                clients.openWindow(location.origin)
+                            );
+                        } else {
+                            // 기본 클릭 - 앱 열기
+                            event.waitUntil(
+                                clients.matchAll().then(function(clientList) {
+                                    if (clientList.length > 0) {
+                                        return clientList[0].focus();
+                                    }
+                                    return clients.openWindow(location.origin);
+                                })
+                            );
+                        }
+                    });
+
+                    // 백그라운드 푸시 메시지 처리
+                    self.addEventListener('push', function(event) {
+                        console.log('백그라운드 푸시 수신:', event);
+                        
+                        if (event.data) {
+                            const data = event.data.json();
+                            const options = {
+                                body: data.body,
+                                icon: data.icon || '/icon-192.png',
+                                badge: data.badge || '/badge-72.png',
+                                tag: data.tag || 'default',
+                                requireInteraction: true,
+                                actions: data.actions || []
+                            };
+
+                            event.waitUntil(
+                                self.registration.showNotification(data.title, options)
+                            );
+                        }
+                    });
+                `;
+
+                const blob = new Blob([swCode], { type: 'text/javascript' });
+                const swUrl = URL.createObjectURL(blob);
+
+                navigator.serviceWorker.register(swUrl)
+                    .then((registration) => {
+                        console.log('✅ Service Worker 등록 성공:', registration);
+                        
+                        // 푸시 알림 구독 (고급 기능)
+                        if ('PushManager' in window) {
+                            subscribeToPush(registration);
+                        }
+                    })
+                    .catch(err => console.log('❌ Service Worker 등록 실패:', err));
+            }
+        }
+
+        // 푸시 구독 (백그라운드 알림용)
+        async function subscribeToPush(registration) {
+            try {
+                const subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: null // VAPID 키 필요시 추가
+                });
+                
+                console.log('✅ 푸시 구독 성공:', subscription);
+                // 서버에 구독 정보 전송 (필요시)
+            } catch (error) {
+                console.log('푸시 구독 실패:', error);
             }
         }
 

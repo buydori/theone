@@ -28,27 +28,6 @@
         }
 
         .header {
-            background: linear-gradient(135deg, #2c5aa0 0%, #1e3c72 100%);
-            color: white;
-            padding: 40px 30px;
-            text-align: center;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #2c5aa0 0%, #1e3c72 100%);
-            color: white;
-            padding: 40px 30px;
-            text-align: center;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #2c5aa0 0%, #1e3c72 100%);
-            color: white;
-            padding: 40px 30px;
-            text-align: center;
-        }
-
-        .header {
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -502,7 +481,7 @@
                 }
             });
             updateFileList();
-            updateFileInfo(); // 파일 정보 업데이트
+            updateFileInfo();
         }
 
         function updateFileList() {
@@ -521,7 +500,7 @@
         function removeFile(index) {
             selectedFiles.splice(index, 1);
             updateFileList();
-            updateFileInfo(); // 파일 정보 업데이트
+            updateFileInfo();
         }
 
         // 파일 정보를 숨김 필드에 저장
@@ -540,27 +519,23 @@
         const today = new Date().toISOString().split('T')[0];
         document.getElementById('serviceDate').min = today;
 
-        // URL 매개변수 확인하여 성공 메시지 표시 (Google Apps Script 리다이렉트 대응)
+        // URL 매개변수 확인하여 성공 메시지 표시
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('success') === 'true') {
-            // URL에서 온 성공 신호
             document.getElementById('successModal').style.display = 'block';
             
-            // URL에서 success 매개변수 제거 (깔끔하게)
             const newUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
             window.history.pushState({path: newUrl}, '', newUrl);
             
             console.log('✅ Google Apps Script 리다이렉트로 성공 처리됨');
         }
 
-        // 폼 제출 전 유효성 검사 - 모든 경우를 JavaScript로 처리
+        // 폼 제출 처리
         document.getElementById('quoteForm').addEventListener('submit', function(e) {
-            e.preventDefault(); // 모든 경우에 기본 제출 방지
+            e.preventDefault();
             
-            // 타임스탬프 설정
             document.getElementById('timestampField').value = new Date().toISOString();
             
-            // 선택된 서비스 확인
             const selectedServices = Array.from(document.querySelectorAll('input[name="services[]"]:checked'));
             
             if (selectedServices.length === 0) {
@@ -568,7 +543,6 @@
                 return;
             }
 
-            // 모든 경우를 JavaScript로 처리 (CORS 문제 해결)
             submitFormData();
 
             console.log('견적 요청 제출:', {
@@ -589,22 +563,18 @@
             submitBtn.disabled = true;
 
             try {
-                // iframe을 사용한 폼 제출 (CORS 우회)
                 const result = await submitFormViaIframe();
                 
                 if (result.success) {
-                    // 모달 요소들 가져오기
                     const fileUploadSuccess = document.getElementById('fileUploadSuccess');
                     const fileUploadGuide = document.getElementById('fileUploadGuide');
                     const uploadedFilesList = document.getElementById('uploadedFilesList');
                     const selectedFilesList = document.getElementById('selectedFilesList');
                     
                     if (selectedFiles.length > 0) {
-                        // 파일이 있는 경우 - 업로드 성공으로 가정
                         fileUploadSuccess.style.display = 'block';
                         fileUploadGuide.style.display = 'none';
                         
-                        // 업로드된 파일 목록 표시
                         const fileListHtml = selectedFiles.map(file => 
                             `<div style="margin: 5px 0;">📷 ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB) ✅</div>`
                         ).join('');
@@ -612,15 +582,12 @@
                         
                         console.log(`✅ ${selectedFiles.length}개 파일 업로드 완료로 처리`);
                     } else {
-                        // 파일이 없는 경우 - 가이드 숨김
                         fileUploadSuccess.style.display = 'none';
                         fileUploadGuide.style.display = 'none';
                     }
                     
-                    // 성공 모달 표시
                     document.getElementById('successModal').style.display = 'block';
                     
-                    // 폼 초기화
                     document.getElementById('quoteForm').reset();
                     selectedFiles = [];
                     updateFileList();
@@ -635,13 +602,12 @@
                 console.error('전송 오류:', error);
                 alert('견적 요청 전송 중 오류가 발생했습니다. 다시 시도해주세요.');
             } finally {
-                // 버튼 복원
                 submitBtn.textContent = originalText;
                 submitBtn.disabled = false;
             }
         }
 
-        // iframe을 사용한 폼 제출 (파일 업로드 지원)
+        // ⭐ 수정된 iframe을 사용한 폼 제출 함수
         function submitFormViaIframe() {
             return new Promise((resolve) => {
                 // iframe 생성
@@ -656,29 +622,54 @@
                 const originalEnctype = form.enctype;
 
                 form.target = 'submitFrame';
-                form.enctype = 'multipart/form-data'; // 파일 업로드를 위해 중요!
+                form.enctype = 'multipart/form-data';
 
-                // 선택된 파일들을 실제 file input에 설정
+                // ⭐ 개선된 파일 처리 방법
                 if (selectedFiles.length > 0) {
-                    // 기존 file input 제거
-                    const oldFileInput = document.getElementById('photos');
-                    if (oldFileInput) {
-                        oldFileInput.remove();
+                    console.log(`📤 ${selectedFiles.length}개 파일 준비 중...`);
+                    
+                    // 기존 photos input 제거
+                    const existingPhotosInput = document.getElementById('photos');
+                    if (existingPhotosInput) {
+                        existingPhotosInput.remove();
                     }
 
-                    // 새 file input들 생성 (각 파일마다)
+                    // 각 파일을 개별 input으로 생성
                     selectedFiles.forEach((file, index) => {
-                        const fileInput = document.createElement('input');
-                        fileInput.type = 'file';
-                        fileInput.name = `photo_${index}`;
-                        fileInput.style.display = 'none';
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.name = `photo_${index}`;
+                        input.style.display = 'none';
                         
-                        // DataTransfer를 사용해 파일 설정
-                        const dt = new DataTransfer();
-                        dt.items.add(file);
-                        fileInput.files = dt.files;
+                        // DataTransfer 사용하여 파일 설정
+                        const dataTransfer = new DataTransfer();
+                        dataTransfer.items.add(file);
+                        input.files = dataTransfer.files;
                         
-                        form.appendChild(fileInput);
+                        form.appendChild(input);
+                        
+                        console.log(`📎 photo_${index}: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)}MB)`);
+                    });
+                    
+                    // 파일 개수 정보 추가
+                    const fileCountInput = document.createElement('input');
+                    fileCountInput.type = 'hidden';
+                    fileCountInput.name = 'fileCount';
+                    fileCountInput.value = selectedFiles.length;
+                    form.appendChild(fileCountInput);
+                    
+                    // 각 파일의 메타데이터 추가
+                    selectedFiles.forEach((file, index) => {
+                        const infoInput = document.createElement('input');
+                        infoInput.type = 'hidden';
+                        infoInput.name = `fileInfo_${index}`;
+                        infoInput.value = JSON.stringify({
+                            name: file.name,
+                            size: file.size,
+                            type: file.type,
+                            lastModified: file.lastModified
+                        });
+                        form.appendChild(infoInput);
                     });
                 }
 
@@ -689,7 +680,6 @@
                     clearTimeout(timeoutId);
                     
                     try {
-                        // iframe 내용 확인 시도
                         const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
                         const content = iframeDoc.body ? iframeDoc.body.innerHTML : '';
                         
@@ -706,8 +696,8 @@
                     form.target = originalTarget;
                     form.enctype = originalEnctype;
                     
-                    // 임시로 추가된 file input들 제거
-                    form.querySelectorAll('input[name^="photo_"]').forEach(input => {
+                    // 임시로 추가된 input들 제거
+                    form.querySelectorAll('input[name^="photo_"], input[name^="fileInfo_"], input[name="fileCount"]').forEach(input => {
                         input.remove();
                     });
                     
@@ -734,12 +724,12 @@
                     }, 1000);
                 };
 
-                // 타임아웃 설정 (15초 - 파일 업로드 시간 고려)
+                // 타임아웃 설정 (20초 - 파일 업로드 시간 고려)
                 timeoutId = setTimeout(() => {
                     console.log('✅ 타임아웃 완료 - 업로드 성공으로 처리');
                     resolve({ success: true });
                     onLoad();
-                }, 15000);
+                }, 20000);
 
                 // 이벤트 리스너 추가
                 iframe.addEventListener('load', onLoad);
@@ -751,15 +741,8 @@
             });
         }
 
-        // 파일이 있을 때만 AJAX 사용
-        async function submitWithFiles() {
-            // 이 함수는 더 이상 사용하지 않음 - submitFormData로 통합됨
-            return submitFormData();
-        }
-
         function closeModal() {
             document.getElementById('successModal').style.display = 'none';
-            // 모든 파일 관련 요소 숨김
             document.getElementById('fileUploadSuccess').style.display = 'none';
             document.getElementById('fileUploadGuide').style.display = 'none';
         }
@@ -783,7 +766,7 @@
             e.target.value = value;
         });
 
-        console.log('더원클린앤케어 견적요청서 준비 완료! 🧹✨ (Google Drive 자동 업로드 지원)');
+        console.log('🧹✨ 더원클린앤케어 견적요청서 준비 완료! (개선된 파일 업로드 지원)');
     </script>
 </body>
 </html>
